@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'base.ExecuteSabaQuery'
-	,	@Version	SYSNAME		= N'1.3.0'
+	,	@Version	SYSNAME		= N'1.3.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -34,8 +34,9 @@ AS
 							2				- UAT
 							3				- SIT
 
-	Version:	1.3.0
+	Version:	1.3.1
 	Revision:
+		- [1.3.1]	20211222@Billy		Normal user cannot access DMV, fallback to @@VERSION to detect OS type
 		- [1.3.0]	20211221@Billy		Forward execution to bridge on Linux instance
 										Support Local Environment
 		- [1.2.0]	20211130@Billy		Support UAT Environment
@@ -52,14 +53,18 @@ BEGIN;
 	/** Forward execution to Windows SQL Server instance due to lack of external linked server
 	    support on Linux SQL Server.
 	*/
-	DECLARE	@Win	NVARCHAR(256)
+	DECLARE	@Win	BIT
 		;
-	SELECT	@Win = windows_release
-	FROM	sys.dm_os_windows_info;
-	IF	@Win = N''
+	SELECT	@Win = CASE WHEN val LIKE N'%Windows%' THEN 1 WHEN val LIKE N'%Linux%' THEN 0 ELSE NULL END
+	FROM	base.tf_SplitString(@@VERSION, N' on ', 2);
+
+	IF	@Win IS NULL
+		RETURN;
+
+	IF	@Win = 0
 	BEGIN;
 		EXECUTE	DBBRIDGE.SabaDB.base.ExecuteSabaQuery @Query, @Var1, @Var2, @Var3;
-		RETURN
+		RETURN;
 	END;
 
 	DECLARE	@_L		INT
