@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'base.ExecuteSabaQuery'
-	,	@Version	SYSNAME		= N'1.3.2'
+	,	@Version	SYSNAME		= N'1.3.3'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -34,8 +34,9 @@ AS
 							2				- UAT
 							3				- SIT
 
-	Version:	1.3.2
+	Version:	1.3.3
 	Revision:
+		- [1.3.3]	20220106@Billy		If there are 2 errors, raise error instead of printing only
 		- [1.3.2]	20211228@Billy		Capture all errors in case both tries failed
 		- [1.3.1]	20211222@Billy		Normal user cannot access DMV, fallback to @@VERSION to detect OS type
 		- [1.3.0]	20211221@Billy		Forward execution to bridge on Linux instance
@@ -122,7 +123,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -156,7 +160,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -190,7 +197,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -224,7 +234,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -258,7 +271,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -292,7 +308,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -326,7 +345,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -360,7 +382,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -394,7 +419,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -428,7 +456,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -456,7 +487,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -490,7 +524,10 @@ BEGIN;
 			,	TYPE
 		) AS errx(xml);
 
-		RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		IF	(SELECT COUNT(1) FROM @Errors) > 1
+			RAISERROR(@Message, 16, 1) WITH NOWAIT;
+		ELSE
+			RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 END;
 GO
