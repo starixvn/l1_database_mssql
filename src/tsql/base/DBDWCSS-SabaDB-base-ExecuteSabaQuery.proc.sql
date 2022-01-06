@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'base.ExecuteSabaQuery'
-	,	@Version	SYSNAME		= N'1.3.1'
+	,	@Version	SYSNAME		= N'1.3.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -34,8 +34,9 @@ AS
 							2				- UAT
 							3				- SIT
 
-	Version:	1.3.1
+	Version:	1.3.2
 	Revision:
+		- [1.3.2]	20211228@Billy		Capture all errors in case both tries failed
 		- [1.3.1]	20211222@Billy		Normal user cannot access DMV, fallback to @@VERSION to detect OS type
 		- [1.3.0]	20211221@Billy		Forward execution to bridge on Linux instance
 										Support Local Environment
@@ -79,13 +80,49 @@ BEGIN;
 	IF	NULLIF(@Query, N'') IS NULL
 		RETURN;
 
+	DECLARE	@Errors AS TABLE (
+				ErrNumber		INT
+			,	ErrSeverity		INT
+			,	ErrState		INT
+			,	ErrProcedure	NVARCHAR(128)
+			,	ErrLine			INT
+			,	ErrMessage		NVARCHAR(MAX)
+			);
+	DECLARE	@Message	NVARCHAR(MAX)
+		;
+
 	IF	@_L    = 1
 	AND	@_Type = 0 -- Active
 	AND	@_Env  = 1 -- PRO
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L1_SABABI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L1BI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L1BI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -93,8 +130,33 @@ BEGIN;
 	AND	@_Env  = 1 -- PRO
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L2_SABABI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L2BI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L2BI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -102,8 +164,33 @@ BEGIN;
 	AND	@_Env  = 1 -- PRO
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L3_SABABI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L3aBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L3aBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -111,8 +198,33 @@ BEGIN;
 	AND	@_Env  = 1 -- PRO
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L1_SABAARCBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L1BI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L1BI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -120,8 +232,33 @@ BEGIN;
 	AND	@_Env  = 1 -- PRO
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L2_SABAARCBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L2BI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L2BI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -129,8 +266,33 @@ BEGIN;
 	AND	@_Env  = 1 -- PRO
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L3_SABAARCBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L3aBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L3aBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -138,8 +300,33 @@ BEGIN;
 	AND	@_Env  = 2 -- UAT
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L1_SABAUATBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L1pBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L1pBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -147,8 +334,33 @@ BEGIN;
 	AND	@_Env  = 2 -- UAT
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L2_SABAUATBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L2pBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L2pBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -156,8 +368,33 @@ BEGIN;
 	AND	@_Env  = 2 -- UAT
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L3_SABAUATBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L3bBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L3bBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -165,8 +402,33 @@ BEGIN;
 	AND	@_Env  = 3 -- SIT
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L1_SABASITBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L1ppBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L1ppBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -174,8 +436,27 @@ BEGIN;
 	AND	@_Env  = 3 -- SIT
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L2_SABASITBI;
-	END TRY BEGIN CATCH;
-		RETURN;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -183,8 +464,33 @@ BEGIN;
 	AND	@_Env  = 3 -- SIT
 	BEGIN TRY;
 		EXECUTE	(@Query) AT L3_SABASITBI;
-	END TRY BEGIN CATCH;
-		EXECUTE	(@Query) AT L3cBI;
+	END TRY BEGIN CATCH
+		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		BEGIN TRY;
+			EXECUTE	(@Query) AT L3cBI;
+		END TRY BEGIN CATCH
+			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
+			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
+		END CATCH;
+
+		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
+		FROM	(
+			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
+					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
+					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
+					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
+					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
+					+ N'
+' + ErrMessage + N'
+
+'
+			FROM	@Errors
+			FOR XML PATH ('')
+			,	TYPE
+		) AS errx(xml);
+
+		RAISERROR(@Message, 0, 0) WITH NOWAIT;
 	END CATCH;
 END;
 GO
