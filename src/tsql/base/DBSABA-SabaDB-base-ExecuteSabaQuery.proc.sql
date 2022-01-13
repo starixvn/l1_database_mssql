@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'base.ExecuteSabaQuery'
-	,	@Version	SYSNAME		= N'1.3.3'
+	,	@Version	SYSNAME		= N'1.3.4'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -34,8 +34,10 @@ AS
 							2				- UAT
 							3				- SIT
 
-	Version:	1.3.3
+	Version:	1.3.4
 	Revision:
+		- [1.3.4]	20220113@Billy		Move common error handling to ErrorHandling label
+										Retry 3 times before RAISERROR
 		- [1.3.3]	20220106@Billy		If there are 2 errors, raise error instead of printing only
 		- [1.3.2]	20211228@Billy		Capture all errors in case both tries failed
 		- [1.3.1]	20211222@Billy		Normal user cannot access DMV, fallback to @@VERSION to detect OS type
@@ -89,8 +91,10 @@ BEGIN;
 			,	ErrLine			INT
 			,	ErrMessage		NVARCHAR(MAX)
 			);
-	DECLARE	@Message	NVARCHAR(MAX)
-		;
+
+	DECLARE	@Retry	INT	= 3;
+
+	Retry:
 
 	IF	@_L    = 1
 	AND	@_Type = 0 -- Active
@@ -107,26 +111,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -144,26 +129,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -181,26 +147,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -218,26 +165,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -255,26 +183,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -292,26 +201,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -329,26 +219,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -366,26 +237,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -403,26 +255,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 1
@@ -440,26 +273,7 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 2
@@ -471,26 +285,7 @@ BEGIN;
 		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
 		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 
-		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
-		FROM	(
-			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
-					+ N', Level ' + CAST(ErrSeverity AS NVARCHAR(MAX))
-					+ N', State ' + CAST(ErrState AS NVARCHAR(MAX))
-					+ ISNULL(N', Procedure ' + ErrProcedure, N'')
-					+ N', Line ' + CAST(ErrLine AS NVARCHAR(MAX))
-					+ N'
-' + ErrMessage + N'
-
-'
-			FROM	@Errors
-			FOR XML PATH ('')
-			,	TYPE
-		) AS errx(xml);
-
-		IF	(SELECT COUNT(1) FROM @Errors) > 1
-			RAISERROR(@Message, 16, 1) WITH NOWAIT;
-		ELSE
-			RAISERROR(@Message, 0, 0) WITH NOWAIT;
+		GOTO ErrorHandling;
 	END CATCH;
 
 	IF	@_L    = 3
@@ -508,6 +303,28 @@ BEGIN;
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		END CATCH;
 
+		GOTO ErrorHandling;
+	END CATCH;
+
+
+	RETURN;
+
+	ErrorHandling:
+	IF	(SELECT	COUNT(1) FROM @Errors) > 1 AND @Retry > 0
+	AND	EXISTS (SELECT 1 FROM @Errors WHERE ErrNumber IN (7303))
+	BEGIN;
+		SELECT	@Retry -= 1;
+		DELETE	@Errors;
+		GOTO Retry;
+	END;
+	ELSE
+	BEGIN;
+		WHILE	@@TRANCOUNT > 0
+			ROLLBACK;
+
+		DECLARE	@Message	NVARCHAR(MAX)
+			;
+
 		SELECT	@Message = errx.xml.value('.', 'NVARCHAR(MAX)')
 		FROM	(
 			SELECT	  N'Msg ' + CAST(ErrNumber AS NVARCHAR(MAX))
@@ -520,6 +337,7 @@ BEGIN;
 
 '
 			FROM	@Errors
+			WHERE	ErrNumber NOT IN (7202)
 			FOR XML PATH ('')
 			,	TYPE
 		) AS errx(xml);
@@ -528,6 +346,6 @@ BEGIN;
 			RAISERROR(@Message, 16, 1) WITH NOWAIT;
 		ELSE
 			RAISERROR(@Message, 0, 0) WITH NOWAIT;
-	END CATCH;
+	END;
 END;
 GO
