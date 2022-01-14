@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'SysHealth.SummaryCrossCheck'
-	,	@Version	SYSNAME		= N'1.0.0'
+	,	@Version	SYSNAME		= N'1.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -22,8 +22,9 @@ AS
 		@Var2:				[optional]		- The system environment id
 				<DEFAULT>	NULL			- Invalid
 
-	Version:	1.0.0
+	Version:	1.0.1
 	Revision:
+		- [1.0.1]	20220114@Billy		Truncate overflow message
 		- [1.0.0]	20211201@Billy		Release SysHealth.SummaryCrossCheck
 		- [0.0.3]	20211203@Billy		Include partnerId & environment
 		- [0.0.2]	20211202@Billy		Include refund data
@@ -217,6 +218,7 @@ GROUP BY DATE_FORMAT(time, "%Y-%m-%d"), gameId, currency, isCash, partnerId;
 			SELECT	xr.xml.value('.', 'NVARCHAR(MAX)')
 		) AS r(str);
 
+		SELECT	@Message = CASE WHEN DATALENGTH(@Message) > 8000 THEN LEFT(@Message, 3997) + N'...' ELSE @Message END
 		EXECUTE	SysHealth.SendNotification @Message, @isTest;
 	END;
 	ELSE
