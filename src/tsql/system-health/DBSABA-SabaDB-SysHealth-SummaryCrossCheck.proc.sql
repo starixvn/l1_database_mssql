@@ -12,7 +12,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20211201@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Summary Cross Check
 					Summary data between daily and hourly then send result via SysHealth Channel
 

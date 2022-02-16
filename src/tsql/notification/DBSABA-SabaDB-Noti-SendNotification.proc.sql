@@ -12,7 +12,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20210529@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Send message to telegram channel - [Skynex.SC] DB Notification
 
 	Parameters:

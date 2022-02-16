@@ -14,7 +14,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20210208@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Execute query on Luminet system
 
 	Parameters:

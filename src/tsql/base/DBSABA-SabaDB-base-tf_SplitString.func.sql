@@ -15,7 +15,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20190125@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Split String Function - Inline Table Value Version
 
 	Parameters:

@@ -11,7 +11,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20211109@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Check Exchange date in OW database
 
 	Parameters:

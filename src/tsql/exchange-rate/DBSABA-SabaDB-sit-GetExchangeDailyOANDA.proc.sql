@@ -11,7 +11,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20211018@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Get Exchange OANDA data from OW database
 
 	Parameters:

@@ -11,7 +11,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20210208@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Wait for random period of time before continue
 
 	Parameters:

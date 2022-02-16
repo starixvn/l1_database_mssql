@@ -12,7 +12,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20211122@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Exchange code list in SB database
 
 	Parameters:

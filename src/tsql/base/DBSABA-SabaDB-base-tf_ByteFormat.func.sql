@@ -13,7 +13,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20210503@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Byte Value Format Function - Inline Table Value Version
 
 	Parameters:

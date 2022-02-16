@@ -13,7 +13,7 @@ WITH ENCRYPTION
 AS
 /*
 	Creator:		20210531@Billy
-	Location:		DBDWCSS.SabaDB
+	Location:		DBSABA.SabaDB
 	Description:	Send message to letstalk channel
 
 	Parameters:
