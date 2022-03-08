@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'SabaClub.HourlyMarginReport'
-	,	@Version	SYSNAME		= N'0.0.2'
+	,	@Version	SYSNAME		= N'0.0.3'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -24,7 +24,7 @@ AS
 				<DEFAULT>	NULL			- Treat as if testing
 
 
-	Version:	0.0.2
+	Version:	0.0.3
 	Revision:
 		- [1.0.0]	20220216@Billy		Release SabaClub.HourlyMarginReport
 		- [0.0.2]	20220225@Billy		Limit positive margin to 3 items
@@ -160,6 +160,7 @@ BEGIN;
 			,	[marginL]		= (SUM(s.stake) - SUM(s.payOut)) / SUM(SUM(s.stake)) OVER(PARTITION BY s.L, s.reportTime)
 		FROM	#HourlySummary AS s
 		WHERE	s.L = @L
+			AND	s.currency <> 'UUS'
 		GROUP BY	s.L, s.reportTime, s.gameType;
 
 		SELECT	@Message = @Icon + N'  NEGATIVE MARGIN @' + CONVERT(NVARCHAR(MAX), @ReportHour, 127) + N'
@@ -193,45 +194,6 @@ BEGIN;
 			WHERE	r.reportTime = @ReportHour
 				AND	r.margin < 0
 			ORDER BY r.winLoss ASC
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
-		EXECUTE	dbo.SendNotification @Message, @isTest;
-
-		SELECT	@Message = @Icon + N'  TOP 3 POSITIVE MARGIN @' + CONVERT(NVARCHAR(MAX), @ReportHour, 127) + N'
-' + msg.str
-		FROM	(
-			SELECT	TOP(3) N'
----
-
-\\\[' + r.gameType + N'\] ' + s.str + N'  
-\`BC\`: ' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.betCount AS MONEY), 1), '.00', '') + N'  
-\`TO\`: ' + CONVERT(NVARCHAR(MAX), CAST(r.turnOver AS MONEY), 1) + N'  
-\`WL\`: ' + CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1) + N'  
-\`MG\`: ' + CONVERT(NVARCHAR(MAX), CAST(r.margin * 100 AS MONEY), 1) + N'%  \(' + CONVERT(NVARCHAR(MAX), CAST(r.marginL * 100 AS MONEY), 1) + N'%\)  
-
-'
-			FROM	@Report AS r
-			CROSS APPLY	(
-				SELECT	CASE WHEN _sub.margin < 0 THEN N'🔴' WHEN _sub.margin > 0 THEN N'🟢' WHEN _sub.margin = 0 THEN N'🟡' ELSE N'⚫️' END
-				FROM		@Hours AS _h
-				LEFT JOIN	@Report AS _sub
-						ON	_sub.L = r.L
-						AND	_sub.gameType = r.gameType
-						AND	_sub.reportTime = _h.h
-				ORDER BY _h.h
-				FOR XML PATH ('')
-				,	TYPE
-			) AS sx(xml)
-			CROSS APPLY	(
-				SELECT	sx.xml.value('.', 'NVARCHAR(MAX)')
-			) AS s(str)
-			WHERE	r.reportTime = @ReportHour
-				AND	r.margin > 0
-			ORDER BY r.winLoss DESC
 			FOR XML PATH ('')
 			,	TYPE
 		) AS xmsg(xml)
