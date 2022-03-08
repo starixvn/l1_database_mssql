@@ -1,11 +1,11 @@
 USE	SabaDB;
-DECLARE	@Procedure	SYSNAME		= N'SabaClub.HourlyMarginAlert'
+DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
 	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
 GO
-ALTER PROCEDURE	SabaClub.HourlyMarginAlert
+ALTER PROCEDURE	Noti.HourlyMarginAlert
 					@Var1			SQL_VARIANT		= NULL
 				,	@Var2			SQL_VARIANT		= NULL
 WITH ENCRYPTION
@@ -13,7 +13,7 @@ AS
 /*
 	Creator:		20220303@Billy
 	Location:		DBSABA.SabaDB
-	Description:	Hourly Margin Alert for SabaClub
+	Description:	Hourly Margin Alert for Noti
 					Send result via Noti telegram channel
 
 	Parameters:
@@ -26,7 +26,7 @@ AS
 
 	Version:	1.0.0
 	Revision:
-		- [1.0.0]	20220308@Billy		Release SabaClub.HourlyMarginAlert
+		- [1.0.0]	20220308@Billy		Release Noti.HourlyMarginAlert
 		- [0.0.1]	20220303@Billy		Initital
 */
 BEGIN;
@@ -259,5 +259,5 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 	RETURN	DATEDIFF(MILLISECOND, @Timer, SYSUTCDATETIME());
 END;
 GO
-EXECUTE	SabaClub.HourlyMarginAlert ;
+EXECUTE	Noti.HourlyMarginAlert ;
 GO
