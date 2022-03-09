@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
-	,	@Version	SYSNAME		= N'1.0.0'
+	,	@Version	SYSNAME		= N'1.1.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -8,6 +8,11 @@ GO
 ALTER PROCEDURE	Noti.HourlyMarginAlert
 					@Var1			SQL_VARIANT		= NULL
 				,	@Var2			SQL_VARIANT		= NULL
+
+				/** Configs */
+				,	@Config1		SQL_VARIANT		= NULL
+				,	@Config2		SQL_VARIANT		= NULL
+				,	@Config3		SQL_VARIANT		= NULL
 WITH ENCRYPTION
 AS
 /*
@@ -23,9 +28,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-
-	Version:	1.0.0
+	Version:	1.1.0
 	Revision:
+		- [1.1.0]	20220309@Billy		Can config some alert variables now
 		- [1.0.0]	20220308@Billy		Release Noti.HourlyMarginAlert
 		- [0.0.1]	20220303@Billy		Initital
 */
@@ -38,15 +43,30 @@ BEGIN;
 	DECLARE	@ReportHour		DATETIME
 		,	@ReportDate		DATETIME
 		,	@isTest			BIT
+
+		/** Configs */
+		,	@Histories		TINYINT
+		,	@NegAlert		TINYINT
+		,	@NullIgnore		TINYINT
 		;
 
-	BEGIN TRY SELECT @ReportHour = CONVERT(DATETIME, @Var1) END TRY BEGIN CATCH SELECT @ReportHour = NULL END CATCH;
-	BEGIN TRY SELECT @isTest     = CONVERT(BIT     , @Var2) END TRY BEGIN CATCH SELECT @isTest     = NULL END CATCH;
+	BEGIN TRY SELECT @ReportHour = CONVERT(DATETIME, @Var1   ) END TRY BEGIN CATCH SELECT @ReportHour = NULL END CATCH;
+	BEGIN TRY SELECT @isTest     = CONVERT(BIT     , @Var2   ) END TRY BEGIN CATCH SELECT @isTest     = NULL END CATCH;
+
+	BEGIN TRY SELECT @Histories  = CONVERT(TINYINT , @Config1) END TRY BEGIN CATCH SELECT @Histories  = NULL END CATCH;
+	BEGIN TRY SELECT @NegAlert   = CONVERT(TINYINT , @Config2) END TRY BEGIN CATCH SELECT @NegAlert   = NULL END CATCH;
+	BEGIN TRY SELECT @NullIgnore = CONVERT(TINYINT , @Config3) END TRY BEGIN CATCH SELECT @NullIgnore = NULL END CATCH;
 
 	SELECT	@ReportHour		= ISNULL(@ReportHour, DATEADD(HOUR, -1, GETUTCDATE()))
 		,	@ReportHour		= DATEADD(HOUR, DATEDIFF(HOUR, 0, @ReportHour), 0)
 		,	@ReportDate		= CAST(@ReportHour AS DATE)
 		,	@isTest			= ISNULL(@isTest, 1)
+
+
+		/** Configs */
+		,	@Histories		= ISNULL(@Histories , 5)
+		,	@NegAlert		= ISNULL(@NegAlert  , 3)
+		,	@NullIgnore		= ISNULL(@NullIgnore, 2)
 		;
 
 	IF	NOT (DATEDIFF(HOUR, @ReportHour, GETUTCDATE()) BETWEEN 1 AND 7 * 24)
@@ -195,7 +215,7 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 			CROSS APPLY	(
 				SELECT	_d.d
 				FROM	(
-					SELECT	TOP(5)
+					SELECT	TOP(@Histories)
 							[h] = _h.h
 						,	[d] = CASE  WHEN _sub.margin < 0 THEN N'🔴'
 										WHEN _sub.margin > 0 THEN N'🟢'
@@ -218,7 +238,7 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 			CROSS APPLY	(
 				SELECT	COUNT(1)
 				FROM	(
-					SELECT	TOP(3)
+					SELECT	TOP(@NegAlert)
 							_r.winLoss
 					FROM		@Hours AS _h
 					LEFT JOIN	@Report AS _r
@@ -232,7 +252,7 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 			CROSS APPLY	(
 				SELECT	COUNT(1)
 				FROM	(
-					SELECT	TOP(3)
+					SELECT	TOP(@NullIgnore)
 							_r.winLoss
 					FROM		@Hours AS _h
 					LEFT JOIN	@Report AS _r
@@ -243,8 +263,8 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 				) AS _t
 				WHERE	_t.winLoss IS NULL
 			) AS nu(n)
-			WHERE	(r.winloss < 0 AND nu.n < 3)
-				OR	nm.n = 3
+			WHERE	(r.winloss < 0 AND nu.n < @NullIgnore)
+				OR	nm.n = @NegAlert
 			ORDER BY r.winloss ASC
 			FOR XML PATH ('')
 			,	TYPE
