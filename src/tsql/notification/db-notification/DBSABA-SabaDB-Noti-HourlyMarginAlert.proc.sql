@@ -66,7 +66,7 @@ BEGIN;
 		/** Configs */
 		,	@Histories		= ISNULL(@Histories , 5)
 		,	@NegAlert		= ISNULL(@NegAlert  , 3)
-		,	@NullIgnore		= ISNULL(@NullIgnore, 2)
+		,	@NullIgnore		= ISNULL(@NullIgnore, 1)
 		;
 
 	IF	NOT (DATEDIFF(HOUR, @ReportHour, GETUTCDATE()) BETWEEN 1 AND 7 * 24)
