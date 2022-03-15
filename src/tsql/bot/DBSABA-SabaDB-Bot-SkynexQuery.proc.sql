@@ -40,8 +40,8 @@ BEGIN;
 
 		IF	@ConversationId IS NULL
 		OR	@Command IS NULL
-		OR	LTRIM(RTRIM(@Command)) = N'saba'
-		OR	@Command NOT LIKE N'saba %'
+		OR	LTRIM(RTRIM(@Command)) = N'sg'
+		OR	@Command NOT LIKE N'sg %'
 			GOTO InvalidResponse;
 
 		TODO:
@@ -71,4 +71,4 @@ END;
 GO
 GRANT EXECUTE ON Bot.SkynexQuery TO sqlLink AS dbo;
 GO
-EXECUTE	Bot.SkynexQuery N'TEST', N'saba ';
+EXECUTE	Bot.SkynexQuery N'TEST', N'sg ';
