@@ -1,0 +1,8 @@
+USE master;
+CREATE LOGIN lmnBackend
+WITH	PASSWORD			= N'lmnBackend'
+	,	DEFAULT_DATABASE	= SabaDB
+	,	CHECK_EXPIRATION	= OFF
+	,	CHECK_POLICY		= OFF
+	;
+GO

@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'Noti.JackpotContributionReport'
-	,	@Version	SYSNAME		= N'1.2.1'
+	,	@Version	SYSNAME		= N'1.2.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -22,8 +22,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.2.1
+	Version:	1.2.2
 	Revision:
+		- [1.2.2]	20220621@Billy		Reformat message
 		- [1.2.1]	20211015@Billy		Configure jackpot contribution rate value
 		- [1.2.0]	20210806@Billy		Migrate SC2 to vG2
 		- [1.1.0]	20210617@Billy		Update query to match with new BI schema
@@ -328,8 +329,8 @@ L' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
 			) AS dsb
 			CROSS APPLY	(
 				SELECT	N'  
-    `' + grp.CurGrp + N'`  
-      \- JC: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2)
+  `' + grp.CurGrp + N'`  
+   \- JC: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2)
 				FROM		#DS_JPContribution AS sb
 				CROSS APPLY	(
 					SELECT	[CurGrp]	= CASE dsb.isExpanded WHEN 1 THEN UPPER(sb.currency) ELSE N'Total' END
