@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.BetLogSummaryReport'
-	,	@Version	SYSNAME		= N'1.1.1'
+	,	@Version	SYSNAME		= N'1.1.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -23,8 +23,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.1.1
+	Version:	1.1.2
 	Revision:
+		- [1.1.2]	20220621@Billy		Reformat messages
 		- [1.1.1]	20211018@Billy		Group by currency code
 		- [1.1.0]	20210812@Billy		Support instant system
 		- [1.0.1]	20210722@Billy		Base SP updated for SIT environment support
@@ -111,9 +112,9 @@ BEGIN;
 	-- List of systems --
 	INSERT INTO	@Systems
 			(id, name)
-	VALUES	( 1, N'ᴄᴏᴄᴏs')
-		,	( 2, N'ᴍᴏʙɪ')
-		,	( 3, N'ɪɴsᴛᴀɴᴛ')
+	VALUES	( 1, N'cocos')
+		,	( 2, N'mobi')
+		,	( 3, N'instant')
 		;
 
 	-- List of currencies --
@@ -140,7 +141,8 @@ BEGIN;
 
 	BEGIN;	-- Summary --
 		SELECT	@Title		= N'BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23)
-			,	@Message	= msg.str
+			,	@Message	= N'\
+  (system) currency : RC | BC | TO' + msg.str
 		FROM	(
 			SELECT	N'
 
@@ -151,10 +153,9 @@ BEGIN;
 			) AS dsb
 			CROSS APPLY	(
 				SELECT	N'
-    ' + grp.CurGrp + N'
-      - RC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '') + N'
-      - BC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '') + N'
-      - TO: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+  ' + grp.CurGrp + N' : ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
+				  + N' | ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
+				  + N' | ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
@@ -195,7 +196,9 @@ BEGIN;
 		) AS msg(str);
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
-		SELECT	@Message	= N'\\\[BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]' + msg.str
+		SELECT	@Message	= N'\
+\\\[BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  
+  (system) currency : RC | BC | TO  ' + msg.str
 		FROM	(
 			SELECT	N'  
 
@@ -207,10 +210,9 @@ BEGIN;
 			) AS dsb
 			CROSS APPLY	(
 				SELECT	N'  
-    `' + grp.CurGrp + N'`  
-      \- RC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '') + N'  
-      \- BC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '') + N'  
-      \- TO: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+  ' + grp.CurGrp + N' : ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
+				  + N' | ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
+				  + N' | ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
