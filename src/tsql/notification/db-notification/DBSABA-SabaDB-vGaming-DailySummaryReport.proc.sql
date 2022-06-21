@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'vGaming.DailySummaryReport'
-	,	@Version	SYSNAME		= N'2.1.1'
+	,	@Version	SYSNAME		= N'2.1.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -24,8 +24,9 @@ AS
 				<DEFAULT>	NULL			- Treat as if testing
 
 
-	Version:	2.1.1
+	Version:	2.1.2
 	Revision:
+		- [2.1.2]	20220621@Billy		Reformat messages
 		- [2.1.1]	20211020@Billy		Group by currency code
 		- [2.1.0]	20210806@Billy		Migrate SC2 to vG2
 		- [2.0.1]	20210722@Billy		Base SP updated for SIT environment support
@@ -332,10 +333,10 @@ vG' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
 			) AS dsb
 			CROSS APPLY	(
 				SELECT	N'  
-    `' + grp.CurGrp + N'`  
-      \- BC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '') + N'  
-      \- TO: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1) + N'  
-      \- WL: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1)
+  `' + grp.CurGrp + N'`  
+   \- BC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '') + N'  
+   \- TO: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1) + N'  
+   \- WL: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
