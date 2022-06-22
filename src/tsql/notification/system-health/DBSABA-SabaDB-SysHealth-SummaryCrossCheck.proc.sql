@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'SysHealth.SummaryCrossCheck'
-	,	@Version	SYSNAME		= N'1.0.1'
+	,	@Version	SYSNAME		= N'1.0.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -22,8 +22,9 @@ AS
 		@Var2:				[optional]		- The system environment id
 				<DEFAULT>	NULL			- Invalid
 
-	Version:	1.0.1
+	Version:	1.0.2
 	Revision:
+		- [1.0.2]	20220622@Billy		Filter out today to avoid NULL data
 		- [1.0.1]	20220114@Billy		Truncate overflow message
 		- [1.0.0]	20211201@Billy		Release SysHealth.SummaryCrossCheck
 		- [0.0.3]	20211203@Billy		Include partnerId & environment
@@ -118,7 +119,8 @@ BEGIN;
 		SELECT	@LQuery = N'';
 		SELECT	@LQuery += N'\
 SELECT	' + CAST(@L AS NVARCHAR(MAX)) + N' AS L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets
-FROM	summary.daily_summaries;
+FROM	summary.daily_summaries
+WHERE	time < DATE(UTC_TIMESTAMP());
 ';
 		INSERT INTO	@Daily (L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets)
 		EXECUTE	base.ExecuteSabaQuery @LQuery, @L, 0, @Env;
@@ -135,6 +137,7 @@ SELECT	' + CAST(@L AS NVARCHAR(MAX)) + N' AS L
 	,	SUM(tickets) AS tickets
 FROM	summary.hourly_summaries
 WHERE	time >= DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL -7 DAY))
+	AND	time <  DATE(UTC_TIMESTAMP())
 GROUP BY DATE_FORMAT(time, "%Y-%m-%d"), gameId, currency, isCash, partnerId;
 ';
 		INSERT INTO	@Hourly (L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets)
