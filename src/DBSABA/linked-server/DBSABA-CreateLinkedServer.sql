@@ -62,11 +62,11 @@ BEGIN;
 
 	RAISERROR(N'\
 [INFO]	Creating linked server''s login @[%s]', 0, 0, @Svr) WITH NOWAIT;
-	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = NULL                        , @rmtuser = N'';
-	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'NT SERVICE\SQLSERVERAGENT', @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
-	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'lmnBackend'               , @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
-	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'lmnGrafana'               , @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
-	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'vnBilly'                  , @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
+	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = NULL          , @rmtuser = N'';
+	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'DBDWCSS\SQL', @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
+	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'lmnBackend' , @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
+	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'lmnGrafana' , @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
+	EXECUTE	master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @Svr, @useself = N'False', @locallogin = N'vnBilly'    , @rmtuser = N'lmn_readonly', @rmtpassword = @Pwd;
 	RAISERROR(N'\
 [DONE]	Creating linked server''s login @[%s]', 0, 0, @Svr) WITH NOWAIT;
 
