@@ -1,6 +1,12 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.BetLogSummaryReport'
-	,	@Version	SYSNAME		= N'1.1.2'
+	,	@Version	SYSNAME		= N'1.2.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+DECLARE	@Procedure	SYSNAME		= N'Noti.BetLogSummaryReport_Wrapper'
+	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -23,8 +29,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.1.2
+	Version:	1.2.0
 	Revision:
+		- [1.2.0]	20220623@Billy		Using SQL Server 2019 syntax
 		- [1.1.2]	20220621@Billy		Reformat messages
 		- [1.1.1]	20211018@Billy		Group by currency code
 		- [1.1.0]	20210812@Billy		Support instant system
@@ -39,17 +46,8 @@ BEGIN;
 		,	@isTest			BIT
 		;
 
-	BEGIN TRY;
-		SELECT	@ReportDate		= CONVERT(DATETIME, @Var1);
-	END TRY BEGIN CATCH;
-		SELECT	@ReportDate		= NULL;
-	END CATCH;
-
-	BEGIN TRY;
-		SELECT	@isTest			= CONVERT(BIT, @Var2);
-	END TRY BEGIN CATCH;
-		SELECT	@isTest			= NULL;
-	END CATCH;
+	BEGIN TRY SELECT @ReportDate = CONVERT(DATETIME, @Var1); END TRY BEGIN CATCH SELECT	@ReportDate = NULL; END CATCH;
+	BEGIN TRY SELECT @isTest     = CONVERT(BIT     , @Var2); END TRY BEGIN CATCH SELECT	@isTest     = NULL; END CATCH;
 
 	SELECT	@ReportDate		= ISNULL(@ReportDate, ISNULL(@ReportDate, CAST(DATEADD(DAY, -1, GETUTCDATE()) AS DATE)))
 		,	@isTest			= ISNULL(@isTest, 1)
@@ -68,6 +66,8 @@ BEGIN;
 		,	@Message		NVARCHAR(MAX)
 		,	@Title			NVARCHAR(512)
 		;
+
+	DECLARE	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
 
 	DECLARE	@Ls AS TABLE (
 				L				TINYINT
@@ -141,21 +141,24 @@ BEGIN;
 
 	BEGIN;	-- Summary --
 		SELECT	@Title		= N'BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23)
-			,	@Message	= N'\
-  (system) currency : RC | BC | TO' + msg.str
+			,	@Message	= CONCAT_WS(@NL
+							,	N'  (system) currency : RC | BC | TO  '
+							,	STRING_AGG(msg.msg, @NL) WITHIN GROUP (ORDER BY msg.l)
+							)
 		FROM	(
-			SELECT	N'
-
-' + dsb.name + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
-			FROM	(
-				SELECT	L, name, isExpanded
-				FROM	@Ls
-			) AS dsb
+			SELECT	[l]		= l.L
+				,	[msg]	= CONCAT(N'---  ', @NL, l.name, l.L, N':  ', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
+			FROM	@Ls AS l
 			CROSS APPLY	(
-				SELECT	N'
-  ' + grp.CurGrp + N' : ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
-				  + N' | ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
-				  + N' | ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+				SELECT	[grp]	= grp.CurGrp
+					,	[msg]	= CONCAT(N'  ',  grp.CurGrp,  N' :  '
+								,	CONCAT_WS(N'  |  '
+									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
+									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
+									,	CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+									)
+								,	N'  '
+								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
@@ -164,10 +167,10 @@ BEGIN;
 				) AS ex
 				CROSS APPLY	(
 					SELECT	TOP(1)
-							[CurGrp]	= CASE dsb.isExpanded
-											WHEN 1 THEN N'(' + _sys.name + N') ' +  UPPER(ex.currency)
+							[CurGrp]	= CASE l.isExpanded
+											WHEN 1 THEN N'(' + _sys.name + N') ' + UPPER(ex.currency)
 											ELSE N'(' + _sys.name + N') Total'
-										  END
+											END
 					FROM	(
 						SELECT	id, name
 						FROM	@Systems
@@ -178,41 +181,32 @@ BEGIN;
 					ORDER BY id DESC
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
-					AND	sb.L = dsb.L
+					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
-				ORDER BY grp.CurGrp
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xc(xml)
-			CROSS APPLY	(
-				SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
-			) AS c(str)
-			ORDER BY dsb.L
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+			) AS lmsg
+			GROUP BY l.L, l.name
+		) AS msg;
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
-		SELECT	@Message	= N'\
-\\\[BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  
-  (system) currency : RC | BC | TO  ' + msg.str
+		SELECT	@Message	= CONCAT_WS(@NL
+							,	N'\\\[BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  '
+							,	N'  (system) currency : RC | BC | TO  '
+							,	STRING_AGG(msg.msg, @NL) WITHIN GROUP (ORDER BY msg.l)
+							)
 		FROM	(
-			SELECT	N'  
-
----
-' + dsb.name + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
-			FROM	(
-				SELECT	L, name, isExpanded
-				FROM	@Ls
-			) AS dsb
+			SELECT	[l]		= l.L
+				,	[msg]	= CONCAT(N'---  ', @NL, l.name, l.L, N':  ', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
+			FROM	@Ls AS l
 			CROSS APPLY	(
-				SELECT	N'  
-  ' + grp.CurGrp + N' : ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
-				  + N' | ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
-				  + N' | ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+				SELECT	[grp]	= grp.CurGrp
+					,	[msg]	= CONCAT(N'  ',  grp.CurGrp,  N' :  '
+								,	CONCAT_WS(N'  |  '
+									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
+									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
+									,	CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+									)
+								,	N'  '
+								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
@@ -221,39 +215,83 @@ BEGIN;
 				) AS ex
 				CROSS APPLY	(
 					SELECT	TOP(1)
-							[CurGrp]	= CASE dsb.isExpanded
-											WHEN 1 THEN N'(' + _sys.name + N') ' +  UPPER(ex.currency)
+							[CurGrp]	= CASE l.isExpanded
+											WHEN 1 THEN N'(' + _sys.name + N') ' + UPPER(ex.currency)
 											ELSE N'(' + _sys.name + N') Total'
-										  END
+											END
 					FROM	(
 						SELECT	id, name
 						FROM	@Systems
 						WHERE	id = sb.sys
-						UNION ALL
+						UNION
 						SELECT	NULL, N'***'
 					) AS _sys
 					ORDER BY id DESC
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
-					AND	sb.L = dsb.L
+					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
-				ORDER BY grp.CurGrp
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xc(xml)
-			CROSS APPLY	(
-				SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
-			) AS c(str)
-			ORDER BY dsb.L
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+			) AS lmsg
+			GROUP BY l.L, l.name
+		) AS msg;
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;	-- Summary --
 END;
 GO
-EXECUTE	Noti.BetLogSummaryReport;
+ALTER PROCEDURE	Noti.BetLogSummaryReport_Wrapper
+					@Var1			SQL_VARIANT		= NULL
+				,	@Var2			SQL_VARIANT		= NULL
+				,	@Var3			SQL_VARIANT		= NULL
+WITH ENCRYPTION
+AS
+/*
+	Creator:		20220623@Billy
+	Location:		DBSABA.SabaDB
+	Description:	Get Betlog Summary Wrapper - No error execution
+					Send result via Noti telegram channel
+
+	Parameters:
+		@Var1				[optional]		- The date of data that will be fetched. The time is in UTC timezone.
+				<DEFAULT>	NULL			- Yesterday
+		@Var2:				[optional]		- Is this testing execution?
+				<DEFAULT>	NULL			- Treat as if testing
+		@Var3:				[optional]		- The title for error message
+				<DEFAULT>	NULL			- Default title
+
+	Version:	1.0.0
+	Revision:
+		- [1.0.0]	20220623@Billy		Release Noti.BetLogSummaryReport_Wrapper
+		- [0.0.1]	20220623@Billy		Initital
+*/
+BEGIN;
+	BEGIN TRY;
+		EXECUTE	Noti.BetLogSummaryReport @Var1, @Var2;
+	END TRY BEGIN CATCH;
+		DECLARE	@Title			NVARCHAR(128)	= CONVERT(NVARCHAR(128), @Var3)
+			,	@ErrNumber		INT				= ERROR_NUMBER()
+			,	@ErrSeverity	INT				= ERROR_SEVERITY()
+			,	@ErrState		INT				= ERROR_STATE()
+			,	@ErrProcedure	NVARCHAR(128)	= ERROR_PROCEDURE()
+			,	@ErrLine		INT				= ERROR_LINE()
+			,	@ErrMessage		NVARCHAR(MAX)	= ERROR_MESSAGE()
+			,	@Server			NVARCHAR(128)	= PUBLISHINGSERVERNAME()
+			,	@Database		NVARCHAR(128)	= DB_NAME()
+			,	@isTest			BIT				= CONVERT(BIT, @Var2)
+			;
+		EXECUTE	SysHealth.SendError
+					@Title			= @Title
+				,	@ErrorNumber	= @ErrNumber
+				,	@ErrorSeverity	= @ErrSeverity
+				,	@ErrorState		= @ErrState
+				,	@ErrorProcedure	= @ErrProcedure
+				,	@ErrorLine		= @ErrLine
+				,	@ErrorMessage	= @ErrMessage
+				,	@Server			= @Server
+				,	@Database		= @Database
+				,	@isTest			= @isTest
+				;
+	END CATCH;
+END;
+GO
+EXECUTE	Noti.BetLogSummaryReport_Wrapper NULL, NULL, 'Adhoc Test';
 GO

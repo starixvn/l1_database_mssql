@@ -1,6 +1,12 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'SysHealth.SummaryCrossCheck'
-	,	@Version	SYSNAME		= N'1.0.2'
+	,	@Version	SYSNAME		= N'1.1.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+DECLARE	@Procedure	SYSNAME		= N'SysHealth.SummaryCrossCheck_Wrapper'
+	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -22,8 +28,9 @@ AS
 		@Var2:				[optional]		- The system environment id
 				<DEFAULT>	NULL			- Invalid
 
-	Version:	1.0.2
+	Version:	1.1.0
 	Revision:
+		- [1.1.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [1.0.2]	20220622@Billy		Filter out today to avoid NULL data
 		- [1.0.1]	20220114@Billy		Truncate overflow message
 		- [1.0.0]	20211201@Billy		Release SysHealth.SummaryCrossCheck
@@ -36,6 +43,7 @@ BEGIN;
 	SET NOCOUNT ON;
 
 	DECLARE	@Status			NVARCHAR(128)	= N'OK'
+		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
 		;
 
 	DECLARE	@isTest			BIT
@@ -117,18 +125,18 @@ BEGIN;
 
 		-- Daily Summary --
 		SELECT	@LQuery = N'';
-		SELECT	@LQuery += N'\
-SELECT	' + CAST(@L AS NVARCHAR(MAX)) + N' AS L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets
+		SELECT	@LQuery = CONCAT(@LQuery, N'\
+SELECT	', @L, N' AS L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets
 FROM	summary.daily_summaries
 WHERE	time < DATE(UTC_TIMESTAMP());
-';
+');
 		INSERT INTO	@Daily (L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets)
 		EXECUTE	base.ExecuteSabaQuery @LQuery, @L, 0, @Env;
 
 		-- Hourly Summary --
 		SELECT	@LQuery = N'';
-		SELECT	@LQuery += N'\
-SELECT	' + CAST(@L AS NVARCHAR(MAX)) + N' AS L
+		SELECT	@LQuery = CONCAT(@LQuery, N'\
+SELECT	', @L, N' AS L
 	,	DATE(DATE_FORMAT(time, "%Y-%m-%d")) AS time
 	,	gameId, currency, isCash, partnerId
 	,	SUM(stake) AS stake
@@ -139,7 +147,7 @@ FROM	summary.hourly_summaries
 WHERE	time >= DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL -7 DAY))
 	AND	time <  DATE(UTC_TIMESTAMP())
 GROUP BY DATE_FORMAT(time, "%Y-%m-%d"), gameId, currency, isCash, partnerId;
-';
+');
 		INSERT INTO	@Hourly (L, time, gameId, currency, isCash, partnerId, stake, refund, payout, tickets)
 		EXECUTE	base.ExecuteSabaQuery @LQuery, @L, 0, @Env;
 	END;
@@ -174,33 +182,39 @@ GROUP BY DATE_FORMAT(time, "%Y-%m-%d"), gameId, currency, isCash, partnerId;
 	BEGIN;
 		SELECT	@Status = N'NG';
 
-		SELECT	@Message	= N'\\\[' + @Status + N'\] \\\[Summary Cross Check\] ('
-							+ CASE @Env WHEN 1 THEN N'PRO' WHEN 2 THEN N'UAT' WHEN 3 THEN N'SIT' ELSE N'???' END
-							+ N') @`' + CONVERT(NVARCHAR(MAX), GETUTCDATE(), 23) + N'`' + r.str
+		SELECT	@Message	= CONCAT(
+								N'\\\[', @Status, N'\] \\\[Summary Cross Check\] ('
+							,	CASE @Env WHEN 1 THEN N'PRO' WHEN 2 THEN N'UAT' WHEN 3 THEN N'SIT' ELSE N'???' END
+							,	N') @`', CONVERT(NVARCHAR(MAX), GETUTCDATE(), 23), N'`'
+							,	STRING_AGG(r.msg, @NL) WITHIN GROUP (ORDER BY r.L, r.time, r.gameId, r.currency, r.isCash, r.partnerId)
+							)
 		FROM		(
-			SELECT	N'  
-
----
-`L' + CONVERT(NVARCHAR(MAX), rd.L) + N'|'
-   + CONVERT(NVARCHAR(MAX), rd.time, 23) + N'|'
-   + CONVERT(NVARCHAR(MAX), rd.gameId) + N'|'
-   + rd.currency + N'|'
-   + CASE rd.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' ELSE N'???' END + N'|'
-   + rd.partnerId + N'`' + d.str
+			SELECT	rd.*
+				,	[msg]	= CONCAT_WS(@NL
+							,	N''
+							,	N'---'
+							,	N'`' + CONCAT_WS(N'|'
+								,	CONCAT(N'L', rd.L)
+								,	CONVERT(NVARCHAR(MAX), rd.time, 23)
+								,	rd.gameId
+								,	rd.currency
+								,	CASE rd.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' ELSE N'???' END
+								,	rd.partnerId
+								) + N'`'
+							,	d.str
+							)
 			FROM		(
 				SELECT	DISTINCT
 						L, time, gameId, currency, isCash, partnerId
 				FROM	@Diff
 			) AS rd
 			CROSS APPLY	(
-				SELECT	CASE WHEN df.stake <> 0 THEN N'  
-    \- stake: ' + CONVERT(NVARCHAR(MAX), df.stake) ELSE N'' END +
-						CASE WHEN df.refund <> 0 THEN N'  
-    \- refund: ' + CONVERT(NVARCHAR(MAX), df.refund) ELSE N'' END +
-						CASE WHEN df.payout <> 0 THEN N'  
-    \- payout: ' + CONVERT(NVARCHAR(MAX), df.payout) ELSE N'' END +
-						CASE WHEN df.tickets <> 0 THEN N'  
-    \- tickets: ' + CONVERT(NVARCHAR(MAX), df.tickets) ELSE N'' END
+				SELECT	[str] = CONCAT_WS(@NL
+						,	CASE WHEN df.stake   <> 0 THEN CONCAT(N'  \- stake: ', df.stake) ELSE NULL END
+						,	CASE WHEN df.refund  <> 0 THEN CONCAT(N'  \- refund: ', df.refund) ELSE NULL END
+						,	CASE WHEN df.payout  <> 0 THEN CONCAT(N'  \- payout: ', df.payout) ELSE NULL END
+						,	CASE WHEN df.tickets <> 0 THEN CONCAT(N'  \- tickets: ', df.tickets) ELSE NULL END
+						)
 				FROM	@Diff AS df
 				WHERE	df.L			= rd.L
 					AND	df.time			= rd.time
@@ -208,32 +222,79 @@ GROUP BY DATE_FORMAT(time, "%Y-%m-%d"), gameId, currency, isCash, partnerId;
 					AND	df.currency		= rd.currency
 					AND	df.isCash		= rd.isCash
 					AND	df.partnerId	= rd.partnerId
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xd(xml)
-			CROSS APPLY	(
-				SELECT	xd.xml.value('.', 'NVARCHAR(MAX)')
-			) AS d(str)
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xr(xml)
-		CROSS APPLY	(
-			SELECT	xr.xml.value('.', 'NVARCHAR(MAX)')
-		) AS r(str);
+			) AS d
+		) AS r
 
 		SELECT	@Message = CASE WHEN DATALENGTH(@Message) > 8000 THEN LEFT(@Message, 3997) + N'...' ELSE @Message END
 		EXECUTE	SysHealth.SendNotification @Message, @isTest;
 	END;
 	ELSE
 	BEGIN;
-		SELECT	@Message	= N'\\\[' + @Status + N'\] \\\[Summary Cross Check\] ('
-							+ CASE @Env WHEN 1 THEN N'PRO' WHEN 2 THEN N'UAT' WHEN 3 THEN N'SIT' ELSE N'???' END
-							+ N') @`' + CONVERT(NVARCHAR(MAX), GETUTCDATE(), 23) + N'`'
+		SELECT	@Message	= CONCAT(
+								N'\\\[' + @Status + N'\] \\\[Summary Cross Check\] ('
+							,	CASE @Env WHEN 1 THEN N'PRO' WHEN 2 THEN N'UAT' WHEN 3 THEN N'SIT' ELSE N'???' END
+							,	N') @`', CONVERT(NVARCHAR(MAX), GETUTCDATE(), 23), N'`'
+							);
 		EXECUTE	SysHealth.SendNotification @Message, @isTest;
 	END;
 END;
 GO
-EXECUTE	SysHealth.SummaryCrossCheck 1, 1;
-EXECUTE	SysHealth.SummaryCrossCheck 1, 2;
-EXECUTE	SysHealth.SummaryCrossCheck 1, 3;
+ALTER PROCEDURE	SysHealth.SummaryCrossCheck_Wrapper
+					@Var1			SQL_VARIANT		= NULL
+				,	@Var2			SQL_VARIANT		= NULL
+				,	@Var3			SQL_VARIANT		= NULL
+WITH ENCRYPTION
+AS
+/*
+	Creator:		20220623@Billy
+	Location:		DBSABA.SabaDB
+	Description:	Summary Cross Check Wrapper - No error execution
+					Summary data between daily and hourly then send result via SysHealth Channel
+
+	Parameters:
+		@Var1:				[optional]		- Is this testing execution?
+				<DEFAULT>	NULL			- Treat as if testing
+		@Var2:				[optional]		- The system environment id
+				<DEFAULT>	NULL			- Invalid
+		@Var3:				[optional]		- The title for error message
+				<DEFAULT>	NULL			- Default title
+
+	Version:	1.0.0
+	Revision:
+		- [1.0.0]	20220623@Billy		Release SysHealth.SummaryCrossCheck_Wrapper
+		- [0.0.1]	20220623@Billy		Initital
+*/
+BEGIN;
+	BEGIN TRY;
+		EXECUTE	SysHealth.SummaryCrossCheck @Var1, @Var2;
+	END TRY BEGIN CATCH;
+		DECLARE	@Title			NVARCHAR(128)	= CONVERT(NVARCHAR(128), @Var3)
+			,	@ErrNumber		INT				= ERROR_NUMBER()
+			,	@ErrSeverity	INT				= ERROR_SEVERITY()
+			,	@ErrState		INT				= ERROR_STATE()
+			,	@ErrProcedure	NVARCHAR(128)	= ERROR_PROCEDURE()
+			,	@ErrLine		INT				= ERROR_LINE()
+			,	@ErrMessage		NVARCHAR(MAX)	= ERROR_MESSAGE()
+			,	@Server			NVARCHAR(128)	= PUBLISHINGSERVERNAME()
+			,	@Database		NVARCHAR(128)	= DB_NAME()
+			,	@isTest			BIT				= CONVERT(BIT, @Var1)
+			;
+		EXECUTE	SysHealth.SendError
+					@Title			= @Title
+				,	@ErrorNumber	= @ErrNumber
+				,	@ErrorSeverity	= @ErrSeverity
+				,	@ErrorState		= @ErrState
+				,	@ErrorProcedure	= @ErrProcedure
+				,	@ErrorLine		= @ErrLine
+				,	@ErrorMessage	= @ErrMessage
+				,	@Server			= @Server
+				,	@Database		= @Database
+				,	@isTest			= @isTest
+				;
+	END CATCH;
+END;
+GO
+EXECUTE	SysHealth.SummaryCrossCheck_Wrapper 1, 1, N'Adhoc Test';
+EXECUTE	SysHealth.SummaryCrossCheck_Wrapper 1, 2, N'Adhoc Test';
+EXECUTE	SysHealth.SummaryCrossCheck_Wrapper 1, 3, N'Adhoc Test';
 GO

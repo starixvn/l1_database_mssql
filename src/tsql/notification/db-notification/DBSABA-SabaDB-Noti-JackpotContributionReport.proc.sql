@@ -1,6 +1,12 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'Noti.JackpotContributionReport'
-	,	@Version	SYSNAME		= N'1.2.2'
+	,	@Version	SYSNAME		= N'1.3.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+DECLARE	@Object		SYSNAME		= N'Noti.JackpotContributionReport_Wrapper'
+	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -13,7 +19,8 @@ AS
 /*
 	Creator:		20210324@Billy
 	Location:		DBSABA.SabaDB
-	Description:	Compare Jackpot related result between OW and SB then send result via Notification Channel
+	Description:	Jackpot Contribution Report Wrapper - No error execution
+					Compare Jackpot related result between OW and SB then send result via Notification Channel
 
 	Parameters:
 		@Var1				[optional]		- The date of data that will be compared. The time is in UTC timezone.
@@ -22,8 +29,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.2.2
+	Version:	1.3.0
 	Revision:
+		- [1.3.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [1.2.2]	20220621@Billy		Reformat message
 		- [1.2.1]	20211015@Billy		Configure jackpot contribution rate value
 		- [1.2.0]	20210806@Billy		Migrate SC2 to vG2
@@ -39,17 +47,8 @@ BEGIN;
 		,	@isTest			BIT
 		;
 
-	BEGIN TRY;
-		SELECT	@ReportDate		= CONVERT(DATETIME, @Var1);
-	END TRY BEGIN CATCH;
-		SELECT	@ReportDate		= NULL;
-	END CATCH;
-
-	BEGIN TRY;
-		SELECT	@isTest			= CONVERT(BIT, @Var2);
-	END TRY BEGIN CATCH;
-		SELECT	@isTest			= NULL;
-	END CATCH;
+	BEGIN TRY SELECT @ReportDate = CONVERT(DATETIME, @Var1); END TRY BEGIN CATCH SELECT @ReportDate = NULL; END CATCH;
+	BEGIN TRY SELECT @isTest     = CONVERT(BIT     , @Var2); END TRY BEGIN CATCH SELECT @isTest     = NULL; END CATCH;
 
 	SELECT	@ReportDate		= ISNULL(@ReportDate, ISNULL(@ReportDate, CAST(DATEADD(DAY, -1, GETUTCDATE()) AS DATE)))
 		,	@isTest			= ISNULL(@isTest, 1)
@@ -58,6 +57,7 @@ BEGIN;
 	DECLARE	@VendorId		INT 			= 66
 		,	@Bettype		INT				= 3898
 		,	@Status			NVARCHAR(128)	= N'OK'
+		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
 		;
 
 	IF	NOT (DATEDIFF(DAY, @ReportDate, GETUTCDATE()) BETWEEN 1 AND 7)
@@ -115,13 +115,13 @@ BEGIN;
 	-- List of Ls --
 	INSERT INTO	@Ls
 			(L, isExpanded, isDone)
-	VALUES	( 2,          0,      0)
+	VALUES	(2,          0,      0)
 		;
 
 	-- OW Query --
 	BEGIN;
 		SELECT	@OW_Query = N'';
-		SELECT	@OW_Query += N'\
+		SELECT	@OW_Query = CONCAT(@OW_Query, N'\
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 SET NOCOUNT ON;
 
@@ -140,7 +140,7 @@ WHERE	b.vendorID = @VendorId
 	AND	b.custid <> 0 -- Merged Tickets
 GROUP BY b.gameId, g.typenamee, b.CurrencyName
 OPTION (RECOMPILE);
-';
+');
 
 		SELECT	@OW_Param = N'';
 		SELECT	@OW_Param += N'@VendorId INT, @Bettype INT, @ReportDate DATETIME';
@@ -152,9 +152,9 @@ OPTION (RECOMPILE);
 	END;
 
 	SELECT	@DS_Query = N'';
-	SELECT	@DS_Query += N'\
+	SELECT	@DS_Query = CONCAT(@DS_Query, N'\
 SELECT	0 AS L
-	,	' + CAST(@Bettype AS NVARCHAR(MAX)) + N' AS gameTypeId
+	,	', @Bettype, N' AS gameTypeId
 	,	cfg.gameId AS gameId
 	,	cfg.nameEN AS gameType
 	,	IFNULL(ds.currency, "null") AS currency
@@ -163,9 +163,9 @@ FROM		summary.daily_summaries AS ds
 INNER JOIN	summary.game_summary_config AS cfg
 		ON	ds.gameId = cfg.gameId
 WHERE	cfg.groupName = "Slots"
-	AND	ds.time >= "' + CONVERT(NVARCHAR(MAX), @ReportDate, 127) + N'"
-	AND	ds.time < "' + CONVERT(NVARCHAR(MAX), DATEADD(DAY, 1, @ReportDate), 127) + N'"
-';
+	AND	ds.time >= "', CONVERT(NVARCHAR(MAX), @ReportDate, 127), N'"
+	AND	ds.time < "' , CONVERT(NVARCHAR(MAX), DATEADD(DAY, 1, @ReportDate), 127), N'"
+');
 
 	BEGIN;
 		UPDATE	@Ls
@@ -236,40 +236,33 @@ WHERE	cfg.groupName = "Slots"
 			ORDER BY L, gameId;
 
 			SELECT	@Title		= @Status + N'] [Jackpot Contribution ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23)
-				,	@Message	= N'[L' + CONVERT(NVARCHAR(MAX), @L) + N' (' + CONVERT(NVARCHAR(MAX), @gameTypeId) + N'.' + CONVERT(NVARCHAR(MAX), @gameId) + N')] ' + @GameType + N': (JC)' + msg.str
+				,	@Message	= CONCAT_WS(@NL
+								,	CONCAT(N'[L', @L, N' (', @gameTypeId, N'.', @gameId, N')] ', @GameType, N': (JC)')
+								,	STRING_AGG(msg.str, @NL) WITHIN GROUP (ORDER BY msg.currency)
+								)
 			FROM	(
-				SELECT	N'
-[' + currency + N']'
-+ N' ' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(JPCont AS MONEY), 2), '.0000', '')
+				SELECT	[currency]	= currency
+					,	[str]		= CONCAT(N'[', currency, N'] ', REPLACE(CONVERT(NVARCHAR(MAX), CAST(JPCont AS MONEY), 2), '.0000', ''))
 				FROM	@Tmp_JPContribution
 				WHERE	L = @L
 					AND	gameId = @GameId
-				ORDER BY currency
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xmsg(xml)
-			CROSS APPLY	(
-				SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-			) AS msg(str);
+			) AS msg;
 			EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
-			SELECT	@Message = N'\\\[' + @Status + N'\] \\\[Jackpot Contribution ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  
-\\\[L' + CONVERT(NVARCHAR(MAX), @L) + N' \(' + CONVERT(NVARCHAR(MAX), @gameTypeId) + N'.' + CONVERT(NVARCHAR(MAX), @gameId) + N'\)\] ' + @GameType + N': \(JC\)'
-							 + msg.str
-			FROM	(
-				SELECT	N'  
-\\\[' + currency + N'\]'
-+ N' ' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(JPCont AS MONEY), 2), '.0000', '')
-				FROM	@Tmp_JPContribution
-				WHERE	L = @L
-					AND	gameId = @GameId
-				ORDER BY currency
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xmsg(xml)
-			CROSS APPLY	(
-				SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-			) AS msg(str);
+			SELECT	@Message	= CONCAT_WS(@NL
+								,	CONCAT(N'\\\[', @Status, N'\] \\\[Jackpot Contribution ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]  ')
+								,	CONCAT(N'\\\[L', @L, N' \(', @gameTypeId, N'.', @gameId, N'\)\] ', @GameType, N': \(JC\)')
+								,	STRING_AGG(
+										CONCAT_WS(@NL
+										,	N'  '
+										,	CONCAT(N'\\\[', currency, N'\] ', REPLACE(CONVERT(NVARCHAR(MAX), CAST(JPCont AS MONEY), 2), '.0000', ''))
+										)
+									,	@NL
+									) WITHIN GROUP (ORDER BY currency)
+								)
+			FROM	@Tmp_JPContribution
+			WHERE	L = @L
+				AND	gameId = @GameId;
 			EXECUTE	Noti.SendNotification @Message, @isTest;
 
 			DELETE	@Tmp_JPContribution
@@ -281,80 +274,120 @@ WHERE	cfg.groupName = "Slots"
 
 	BEGIN;
 		SELECT	@Title		= @Status + N'] [Jackpot Contribution ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23)
-			,	@Message	= msg.str
-		FROM	(
-			SELECT	N'
-
-L' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
+			,	@Message	= STRING_AGG(
+								CONCAT_WS(@NL, N''
+								,	CONCAT(N'L', l.L, N':  ')
+								,	g.str
+								)
+							,	@NL
+							) WITHIN GROUP (ORDER BY l.L)
+		FROM	@Ls AS l
+		CROSS APPLY	(
+			SELECT	[str]	= STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
 			FROM	(
-				SELECT	L, isExpanded
-				FROM	@Ls
-			) AS dsb
-			CROSS APPLY	(
-				SELECT	N'
-    ' + grp.CurGrp + N'
-      - JC: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2)
+				SELECT	[grp]	= grp.CurGrp
+					,	[str]	= CONCAT_WS(@NL
+								,	CONCAT(N'  ', grp.CurGrp)
+								,	CONCAT(N'  - JC: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2))
+								)
 				FROM		#DS_JPContribution AS sb
 				CROSS APPLY	(
-					SELECT	[CurGrp]	= CASE dsb.isExpanded WHEN 1 THEN UPPER(sb.currency) ELSE N'Total' END
+					SELECT	[CurGrp]	= CASE l.isExpanded WHEN 1 THEN UPPER(sb.currency) ELSE N'Total' END
 				) AS grp
 				WHERE	sb.currency <> 'UUS'
-					AND	sb.L = dsb.L
+					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
-				ORDER BY grp.CurGrp
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xc(xml)
-			CROSS APPLY	(
-				SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
-			) AS c(str)
-			ORDER BY dsb.L
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+			) AS c
+		) AS g;
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
-		SELECT	@Message	= N'\\\[' + @Status + N'\] \\\[Jackpot Contribution ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]' + msg.str
-		FROM	(
-			SELECT	N'  
-
----
-L' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
+		SELECT	@Message	= CONCAT_WS(@NL
+							,	CONCAT(N'\\\[', @Status, N'\] \\\[Jackpot Contribution ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]  ')
+							,	STRING_AGG(
+									CONCAT_WS(@NL, N''
+									,	N'---'
+									,	CONCAT(N'L', l.L, N':')
+									,	g.str
+									)
+								,	@NL
+								) WITHIN GROUP (ORDER BY l.L)
+							)
+		FROM	@Ls AS l
+		CROSS APPLY	(
+			SELECT	[str]	= STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
 			FROM	(
-				SELECT	L, isExpanded
-				FROM	@Ls
-			) AS dsb
-			CROSS APPLY	(
-				SELECT	N'  
-  `' + grp.CurGrp + N'`  
-   \- JC: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2)
+				SELECT	[grp]	= grp.CurGrp
+					,	[str]	= CONCAT_WS(@NL
+								,	CONCAT(N'  `', grp.CurGrp, N'`')
+								,	CONCAT(N'  \- JC: `', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2), N'`')
+								)
 				FROM		#DS_JPContribution AS sb
 				CROSS APPLY	(
-					SELECT	[CurGrp]	= CASE dsb.isExpanded WHEN 1 THEN UPPER(sb.currency) ELSE N'Total' END
+					SELECT	[CurGrp]	= CASE l.isExpanded WHEN 1 THEN UPPER(sb.currency) ELSE N'Total' END
 				) AS grp
 				WHERE	sb.currency <> 'UUS'
-					AND	sb.L = dsb.L
+					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
-				ORDER BY grp.CurGrp
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xc(xml)
-			CROSS APPLY	(
-				SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
-			) AS c(str)
-			ORDER BY dsb.L
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+			) AS c
+		) AS g
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;
 END;
 GO
-EXECUTE	Noti.JackpotContributionReport;
+ALTER PROCEDURE	Noti.JackpotContributionReport_Wrapper
+					@Var1			SQL_VARIANT		= NULL
+				,	@Var2			SQL_VARIANT		= NULL
+				,	@Var3			SQL_VARIANT		= NULL
+WITH ENCRYPTION
+AS
+/*
+	Creator:		20220624@Billy
+	Location:		DBSABA.SabaDB
+	Description:	Jackpot Contribution Report Wrapper - No error execution
+					Compare Jackpot related result between OW and SB then send result via Notification Channel
+
+	Parameters:
+		@Var1				[optional]		- The date of data that will be compared. The time is in UTC timezone.
+				<DEFAULT>	NULL			- Yesterday
+		@Var2:				[optional]		- Is this testing execution?
+				<DEFAULT>	NULL			- Treat as if testing
+		@Var3:				[optional]		- The title for error message
+				<DEFAULT>	NULL			- Default title
+
+	Version:	1.0.0
+	Revision:
+		- [1.0.0]	20220624@Billy		Release Noti.JackpotContributionReport_Wrapper
+		- [0.0.1]	20220624@Billy		Initital
+*/
+BEGIN;
+	BEGIN TRY;
+		EXECUTE	Noti.JackpotContributionReport @Var1, @Var2;
+	END TRY BEGIN CATCH;
+		DECLARE	@Title			NVARCHAR(128)	= CONVERT(NVARCHAR(128), @Var3)
+			,	@ErrNumber		INT				= ERROR_NUMBER()
+			,	@ErrSeverity	INT				= ERROR_SEVERITY()
+			,	@ErrState		INT				= ERROR_STATE()
+			,	@ErrProcedure	NVARCHAR(128)	= ERROR_PROCEDURE()
+			,	@ErrLine		INT				= ERROR_LINE()
+			,	@ErrMessage		NVARCHAR(MAX)	= ERROR_MESSAGE()
+			,	@Server			NVARCHAR(128)	= PUBLISHINGSERVERNAME()
+			,	@Database		NVARCHAR(128)	= DB_NAME()
+			,	@isTest			BIT				= CONVERT(BIT, @Var2)
+			;
+		EXECUTE	SysHealth.SendError
+					@Title			= @Title
+				,	@ErrorNumber	= @ErrNumber
+				,	@ErrorSeverity	= @ErrSeverity
+				,	@ErrorState		= @ErrState
+				,	@ErrorProcedure	= @ErrProcedure
+				,	@ErrorLine		= @ErrLine
+				,	@ErrorMessage	= @ErrMessage
+				,	@Server			= @Server
+				,	@Database		= @Database
+				,	@isTest			= @isTest
+				;
+	END CATCH;
+END;
+GO
+EXECUTE	Noti.JackpotContributionReport_Wrapper NULL, 1, N'Adhoc Test';
 GO

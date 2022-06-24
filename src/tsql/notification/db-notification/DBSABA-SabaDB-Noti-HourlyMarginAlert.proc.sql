@@ -1,6 +1,12 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
-	,	@Version	SYSNAME		= N'1.1.0'
+	,	@Version	SYSNAME		= N'1.2.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert_Wrapper'
+	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -28,8 +34,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.1.0
+	Version:	1.2.0
 	Revision:
+		- [1.2.0]	20220623@Billy		Using SQL Server 2019 syntax
 		- [1.1.0]	20220309@Billy		Can config some alert variables now
 		- [1.0.0]	20220308@Billy		Release Noti.HourlyMarginAlert
 		- [0.0.1]	20220303@Billy		Initital
@@ -38,6 +45,7 @@ BEGIN;
 	SET NOCOUNT ON;
 
 	DECLARE	@Timer			DATETIME2		= SYSUTCDATETIME()
+		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
 		;
 
 	DECLARE	@ReportHour		DATETIME
@@ -61,7 +69,6 @@ BEGIN;
 		,	@ReportHour		= DATEADD(HOUR, DATEDIFF(HOUR, 0, @ReportHour), 0)
 		,	@ReportDate		= CAST(@ReportHour AS DATE)
 		,	@isTest			= ISNULL(@isTest, 1)
-
 
 		/** Configs */
 		,	@Histories		= ISNULL(@Histories , 5)
@@ -183,16 +190,30 @@ BEGIN;
 			AND	s.currency <> 'UUS'
 		GROUP BY	s.L, s.reportTime, s.gameType;
 
-		SELECT	@Message = @Icon + N'  NEGATIVE MARGIN ALERT @' + CONVERT(NVARCHAR(MAX), @ReportHour, 127) + N'
-' + msg.str
+		SELECT	@Message	= CONCAT(@Icon, N'  NEGATIVE MARGIN ALERT @' + CONVERT(NVARCHAR(MAX), @ReportHour, 127), N'  ', @NL
+							,	STRING_AGG(msg.msg, @NL) WITHIN GROUP (ORDER BY msg.wl)
+							)
 		FROM	(
-			SELECT	N'
----
-
-「' + r.gameType + N'」  ' + ds.str + N'  
-Last Hour:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(lh.winLoss AS MONEY), 1), '.00', '') + N'` / `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(lh.turnOver AS MONEY), 1), '.00', '') + N'`  
-Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00', '') + N'` / `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.turnOver AS MONEY), 1), '.00', '') + N'`  
-  '
+			SELECT	[wl]	= r.winloss
+				,	[msg]	= CONCAT_WS(@NL
+							,	N'---  '
+							,	N''
+							,	N'「' + r.gameType + N'」  ' + ds.str + N'  '
+							,	CONCAT(
+									N'Last Hour:  `'
+								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(lh.winLoss AS MONEY), 1), '.00', '')
+								,	N'` / `'
+								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(lh.turnOver AS MONEY), 1), '.00', '')
+								,	N'`  '
+								)
+							,	CONCAT(
+									N'Today:  `'
+								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00', '')
+								,	N'` / `'
+								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.turnOver AS MONEY), 1), '.00', '')
+								,	N'`  '
+								)
+							)
 			FROM	(
 				SELECT	[gameType]	= _r.gameType
 					,	[turnOver]	= SUM(_r.turnOver)
@@ -213,7 +234,7 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 				ORDER BY _h.h DESC
 			) AS lh
 			CROSS APPLY	(
-				SELECT	_d.d
+				SELECT	STRING_AGG(_d.d, N'') WITHIN GROUP (ORDER BY _d.h)
 				FROM	(
 					SELECT	TOP(@Histories)
 							[h] = _h.h
@@ -228,12 +249,6 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 							AND	_sub.reportTime = _h.h
 					ORDER BY _h.h DESC
 				) AS _d
-				ORDER BY _d.h
-				FOR XML PATH ('')
-				,	TYPE
-			) AS dx(xml)
-			CROSS APPLY	(
-				SELECT	dx.xml.value('.', 'NVARCHAR(MAX)')
 			) AS ds(str)
 			CROSS APPLY	(
 				SELECT	COUNT(1)
@@ -265,13 +280,7 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 			) AS nu(n)
 			WHERE	(r.winloss < 0 AND nu.n < @NullIgnore)
 				OR	nm.n = @NegAlert
-			ORDER BY r.winloss ASC
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+		) AS msg
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;
 
@@ -279,5 +288,66 @@ Today:  `' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00',
 	RETURN	DATEDIFF(MILLISECOND, @Timer, SYSUTCDATETIME());
 END;
 GO
-EXECUTE	Noti.HourlyMarginAlert ;
+ALTER PROCEDURE	Noti.HourlyMarginAlert_Wrapper
+					@Var1			SQL_VARIANT		= NULL
+				,	@Var2			SQL_VARIANT		= NULL
+
+				/** Configs */
+				,	@Config1		SQL_VARIANT		= NULL
+				,	@Config2		SQL_VARIANT		= NULL
+				,	@Config3		SQL_VARIANT		= NULL
+
+				,	@Var3			SQL_VARIANT		= NULL
+WITH ENCRYPTION
+AS
+/*
+	Creator:		20220623@Billy
+	Location:		DBSABA.SabaDB
+	Description:	Hourly Margin Alert for Noti Wrapper - No error execution
+					Send result via Noti telegram channel
+
+	Parameters:
+		@Var1				[optional]		- The hour of data that will be compared. The time is in UTC timezone.
+				<DEFAULT>	NULL			- Yesterhour
+		@Var2:				[optional]		- Is this testing execution?
+				<DEFAULT>	NULL			- Treat as if testing
+		@Var3:				[optional]		- The title for error message
+				<DEFAULT>	NULL			- Default title
+
+	Version:	1.0.0
+	Revision:
+		- [1.0.0]	20220623@Billy		Release Noti.HourlyMarginAlert_Wrapper
+		- [0.0.1]	20220623@Billy		Initital
+*/
+BEGIN;
+	BEGIN TRY;
+		EXECUTE	Noti.HourlyMarginAlert @Var1, @Var2, @Config1, @Config2, @Config3;
+	END TRY BEGIN CATCH;
+		DECLARE	@Title			NVARCHAR(128)	= CONVERT(NVARCHAR(128), @Var3)
+			,	@ErrNumber		INT				= ERROR_NUMBER()
+			,	@ErrSeverity	INT				= ERROR_SEVERITY()
+			,	@ErrState		INT				= ERROR_STATE()
+			,	@ErrProcedure	NVARCHAR(128)	= ERROR_PROCEDURE()
+			,	@ErrLine		INT				= ERROR_LINE()
+			,	@ErrMessage		NVARCHAR(MAX)	= ERROR_MESSAGE()
+			,	@Server			NVARCHAR(128)	= PUBLISHINGSERVERNAME()
+			,	@Database		NVARCHAR(128)	= DB_NAME()
+			,	@isTest			BIT				= CONVERT(BIT, @Var2)
+			;
+		EXECUTE	SysHealth.SendError
+					@Title			= @Title
+				,	@ErrorNumber	= @ErrNumber
+				,	@ErrorSeverity	= @ErrSeverity
+				,	@ErrorState		= @ErrState
+				,	@ErrorProcedure	= @ErrProcedure
+				,	@ErrorLine		= @ErrLine
+				,	@ErrorMessage	= @ErrMessage
+				,	@Server			= @Server
+				,	@Database		= @Database
+				,	@isTest			= @isTest
+				;
+	END CATCH;
+END;
+GO
+EXECUTE	Noti.HourlyMarginAlert_Wrapper @Var3 = N'Adhoc Test';
 GO

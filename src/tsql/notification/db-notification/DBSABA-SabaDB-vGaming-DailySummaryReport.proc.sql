@@ -1,6 +1,12 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'vGaming.DailySummaryReport'
-	,	@Version	SYSNAME		= N'2.1.2'
+	,	@Version	SYSNAME		= N'2.2.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+DECLARE	@Procedure	SYSNAME		= N'vGaming.DailySummaryReport_Wrapper'
+	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -24,8 +30,9 @@ AS
 				<DEFAULT>	NULL			- Treat as if testing
 
 
-	Version:	2.1.2
+	Version:	2.2.0
 	Revision:
+		- [2.2.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [2.1.2]	20220621@Billy		Reformat messages
 		- [2.1.1]	20211020@Billy		Group by currency code
 		- [2.1.0]	20210806@Billy		Migrate SC2 to vG2
@@ -43,17 +50,8 @@ BEGIN;
 		,	@isTest			BIT
 		;
 
-	BEGIN TRY;
-		SELECT	@ReportDate		= CONVERT(DATETIME, @Var1);
-	END TRY BEGIN CATCH;
-		SELECT	@ReportDate		= NULL;
-	END CATCH;
-
-	BEGIN TRY;
-		SELECT	@isTest			= CONVERT(BIT, @Var2);
-	END TRY BEGIN CATCH;
-		SELECT	@isTest			= NULL;
-	END CATCH;
+	BEGIN TRY SELECT @ReportDate = CONVERT(DATETIME, @Var1); END TRY BEGIN CATCH SELECT @ReportDate = NULL; END CATCH;
+	BEGIN TRY SELECT @isTest     = CONVERT(BIT     , @Var2); END TRY BEGIN CATCH SELECT @isTest     = NULL; END CATCH;
 
 	SELECT	@ReportDate		= ISNULL(@ReportDate, CAST(DATEADD(DAY, -1, GETUTCDATE()) AS DATE))
 		,	@isTest			= ISNULL(@isTest, 1)
@@ -61,6 +59,7 @@ BEGIN;
 
 	DECLARE	@VendorId		INT 			= 66
 		,	@Status			NVARCHAR(128)	= N'OK'
+		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
 		;
 
 	IF	NOT (DATEDIFF(DAY, @ReportDate, GETUTCDATE()) BETWEEN 1 AND 7)
@@ -136,8 +135,8 @@ BEGIN;
 	-- List of Ls --
 	INSERT INTO	@Ls
 			(L, isExpanded, isCash, isDone)
-	VALUES	( 2,          1,      1,      0)
-		,	( 3,          1,   NULL,      0)
+	VALUES	(2,          1,      1,      0)
+		,	(3,          1,   NULL,      0)
 		;
 
 	-- List of currencies --
@@ -227,44 +226,43 @@ BEGIN;
 			ORDER BY L, gameId;
 
 			SELECT	@Title		= @Status + N'] [vGaming Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23)
-				,	@Message	= N'[vG' + CONVERT(NVARCHAR(MAX), @L) + N' (' + CONVERT(NVARCHAR(MAX), @gameTypeId) + N'.' + CONVERT(NVARCHAR(MAX), @gameId) + N')] ' + @GameType + N': (BC|TO|WL)' + msg.str
-			FROM	(
-				SELECT	N'
-[' + currency + N' (' + CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END + N')]'
-+ N' ' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(betCount AS MONEY), 1), '.00', '')
-+ N'|' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(stake AS MONEY), 1), '.00', '')
-+ N'|' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(winLost AS MONEY), 1), '.00', '')
-				FROM	@Tmp_DailySummary
-				WHERE	L = @L
-					AND	gameId = @GameId
-				ORDER BY currency
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xmsg(xml)
-			CROSS APPLY	(
-				SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-			) AS msg(str);
+				,	@Message	= CONCAT_WS(@NL
+								,	CONCAT(N'[vG', @L, N' (', @gameTypeId, N'.', @gameId, N')] ', @GameType, N': (BC|TO|WL)')
+								,	STRING_AGG(
+										CONCAT(
+											N'[', currency, N' (', CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END, N')] '
+										,	CONCAT_WS(N'|'
+											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(betCount AS MONEY), 1), '.00', '')
+											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(stake AS MONEY), 1), '.00', '')
+											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(winLost AS MONEY), 1), '.00', '')
+											)
+										)
+									,	@NL
+									) WITHIN GROUP (ORDER BY currency)
+								)
+			FROM	@Tmp_DailySummary
+			WHERE	L = @L
+				AND	gameId = @GameId;
 			EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
-			SELECT	@Message = N'\\\[' + @Status + N'\] \\\[vGaming Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  
-\\\[vG' + CONVERT(NVARCHAR(MAX), @L) + N' \(' + CONVERT(NVARCHAR(MAX), @gameTypeId) + N'.' + CONVERT(NVARCHAR(MAX), @gameId) + N'\)\] ' + @GameType + N': \(BC\|TO\|WL\)'
-							 + msg.str
-			FROM	(
-				SELECT	N'  
-\\\[' + currency + N' \(' + CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END + N'\)\]'
-+ N' ' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(betCount AS MONEY), 1), '.00', '')
-+ N'\|' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(stake AS MONEY), 1), '.00', '')
-+ N'\|' + REPLACE(CONVERT(NVARCHAR(MAX), CAST(winLost AS MONEY), 1), '.00', '')
-				FROM	@Tmp_DailySummary
-				WHERE	L = @L
-					AND	gameId = @GameId
-				ORDER BY currency, isCash
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xmsg(xml)
-			CROSS APPLY	(
-				SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-			) AS msg(str);
+			SELECT	@Message	= CONCAT_WS(@NL
+								,	CONCAT(N'\\\[', @Status, N'\] \\\[vGaming Summary ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]  ')
+								,	CONCAT(N'\\\[vG', @L, N' \(', @gameTypeId, N'.', @gameId, N'\)\] ', @GameType, N': \(BC\|TO\|WL\)  ')
+								,	STRING_AGG(
+										CONCAT(
+											N'\\\[', currency, N' \(', CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END, N'\)\] '
+										,	CONCAT_WS(N'|'
+											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(betCount AS MONEY), 1), '.00', '')
+											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(stake AS MONEY), 1), '.00', '')
+											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(winLost AS MONEY), 1), '.00', '')
+											)
+										)
+									,	@NL
+								)
+								)
+			FROM	@Tmp_DailySummary
+			WHERE	L = @L
+				AND	gameId = @GameId;
 			EXECUTE	Noti.SendNotification @Message, @isTest;
 
 			DELETE	@Tmp_DailySummary
@@ -275,21 +273,25 @@ BEGIN;
 
 	BEGIN;	-- Summary --
 		SELECT	@Title		= @Status + N'] [vGaming Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23)
-			,	@Message	= msg.str
+			,	@Message	= STRING_AGG(
+								g.str
+							,	@NL
+							) WITHIN GROUP (ORDER BY g.grp)
 		FROM	(
-			SELECT	N'
-
-vG' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
-			FROM	(
-				SELECT	L, isExpanded
-				FROM	@Ls
-			) AS dsb
+			SELECT	[grp]	= l.L
+				,	[str]	= CONCAT_WS(@NL
+							,	CONCAT(N'vG', l.L, N':  ')
+							,	STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
+							)
+			FROM		@Ls AS l
 			CROSS APPLY	(
-				SELECT	N'
-    ' + grp.CurGrp + N'
-      - BC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '') + N'
-      - TO: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1) + N'
-      - WL: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1)
+				SELECT	[grp]	= grp.CurGrp
+					,	[str]	= CONCAT_WS(@NL
+								,	CONCAT(N'  ', grp.CurGrp)
+								,	CONCAT(N'    - BC: ', REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', ''))
+								,	CONCAT(N'    - TO: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1))
+								,	CONCAT(N'    - WL: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1))
+								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
@@ -297,46 +299,41 @@ vG' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
 					SELECT	[currency]	= ISNULL(e.code, sb.currency)
 				) AS ex
 				CROSS APPLY	(
-					SELECT	[CurGrp]	= CASE dsb.isExpanded
+					SELECT	[CurGrp]	= CASE l.isExpanded
 											WHEN 1 THEN N'(' + CASE sb.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' WHEN 2 THEN N'nul' ELSE N'***' END + N') ' +  UPPER(ex.currency)
 											ELSE N'Total'
-										  END
+											END
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
-					AND	sb.L = dsb.L
+					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
-				ORDER BY grp.CurGrp
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xc(xml)
-			CROSS APPLY	(
-				SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
-			) AS c(str)
-			ORDER BY dsb.L
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+			) AS c
+			GROUP BY l.L
+		) AS g;
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
-		SELECT	@Message	= N'\\\[' + @Status + N'\] \\\[vGaming Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]' + msg.str
+		SELECT	@Message	= CONCAT_WS(@NL
+							,	CONCAT(N'\\\[', @Status, N'\] \\\[vGaming Summary ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]')
+							,	STRING_AGG(
+									g.str
+								,	@NL
+								) WITHIN GROUP (ORDER BY g.grp)
+							)
 		FROM	(
-			SELECT	N'  
-
----
-vG' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
-			FROM	(
-				SELECT	L, isExpanded
-				FROM	@Ls
-			) AS dsb
+			SELECT	[grp]	= l.L
+				,	[str]	= CONCAT_WS(@NL
+							,	CONCAT(N'vG', l.L, N':  ')
+							,	STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
+							)
+			FROM		@Ls AS l
 			CROSS APPLY	(
-				SELECT	N'  
-  `' + grp.CurGrp + N'`  
-   \- BC: ' + REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '') + N'  
-   \- TO: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1) + N'  
-   \- WL: ' + CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1)
+				SELECT	[grp]	= grp.CurGrp
+					,	[str]	= CONCAT_WS(@NL
+								,	CONCAT(N'  `', grp.CurGrp, N'`')
+								,	CONCAT(N'   \- BC: ', REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', ''))
+								,	CONCAT(N'   \- TO: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1))
+								,	CONCAT(N'   \- WL: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1))
+								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
 						ON	sb.currency = e.currency
@@ -344,31 +341,75 @@ vG' + CONVERT(NVARCHAR(MAX), dsb.L) + N':' + c.str
 					SELECT	[currency]	= ISNULL(e.code, sb.currency)
 				) AS ex
 				CROSS APPLY	(
-					SELECT	[CurGrp]	= CASE dsb.isExpanded
+					SELECT	[CurGrp]	= CASE l.isExpanded
 											WHEN 1 THEN N'(' + CASE sb.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' WHEN 2 THEN N'nul' ELSE N'***' END + N') ' +  UPPER(ex.currency)
 											ELSE N'Total'
-										  END
+											END
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
-					AND	sb.L = dsb.L
+					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
-				ORDER BY grp.CurGrp
-				FOR XML PATH ('')
-				,	TYPE
-			) AS xc(xml)
-			CROSS APPLY	(
-				SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
-			) AS c(str)
-			ORDER BY dsb.L
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xmsg(xml)
-		CROSS APPLY	(
-			SELECT	xmsg.xml.value('.', 'NVARCHAR(MAX)')
-		) AS msg(str);
+			) AS c
+			GROUP BY l.L
+		) AS g;
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;	-- Summary --
 END;
 GO
-EXECUTE	vGaming.DailySummaryReport;
+ALTER PROCEDURE	vGaming.DailySummaryReport_Wrapper
+					@Var1			SQL_VARIANT		= NULL
+				,	@Var2			SQL_VARIANT		= NULL
+				,	@Var3			SQL_VARIANT		= NULL
+WITH ENCRYPTION
+AS
+/*
+	Creator:		20220624@Billy
+	Location:		DBSABA.SabaDB
+	Description:	Daily Summary Report Wrapper - No error execution
+					Compare Daily Summary for vGaming then send result via Noti telegram channel
+
+	Parameters:
+		@Var1				[optional]		- The date of data that will be compared. The time is in UTC timezone.
+				<DEFAULT>	NULL			- Yesterday
+		@Var2:				[optional]		- Is this testing execution?
+				<DEFAULT>	NULL			- Treat as if testing
+		@Var3:				[optional]		- The title for error message
+				<DEFAULT>	NULL			- Default title
+
+	Version:	1.0.0
+	Revision:
+		- [1.0.0]	20220624@Billy		Release vGaming.DailySummaryReport_Wrapper
+		- [0.0.1]	20220624@Billy		Initital
+*/
+BEGIN;
+	BEGIN TRY;
+		EXECUTE	vGaming.DailySummaryReport @Var1, @Var2;
+	END TRY BEGIN CATCH;
+		DECLARE	@Title			NVARCHAR(128)	= CONVERT(NVARCHAR(128), @Var3)
+			,	@ErrNumber		INT				= ERROR_NUMBER()
+			,	@ErrSeverity	INT				= ERROR_SEVERITY()
+			,	@ErrState		INT				= ERROR_STATE()
+			,	@ErrProcedure	NVARCHAR(128)	= ERROR_PROCEDURE()
+			,	@ErrLine		INT				= ERROR_LINE()
+			,	@ErrMessage		NVARCHAR(MAX)	= ERROR_MESSAGE()
+			,	@Server			NVARCHAR(128)	= PUBLISHINGSERVERNAME()
+			,	@Database		NVARCHAR(128)	= DB_NAME()
+			,	@isTest			BIT				= CONVERT(BIT, @Var2)
+			;
+		EXECUTE	SysHealth.SendError
+					@Title			= @Title
+				,	@ErrorNumber	= @ErrNumber
+				,	@ErrorSeverity	= @ErrSeverity
+				,	@ErrorState		= @ErrState
+				,	@ErrorProcedure	= @ErrProcedure
+				,	@ErrorLine		= @ErrLine
+				,	@ErrorMessage	= @ErrMessage
+				,	@Server			= @Server
+				,	@Database		= @Database
+				,	@isTest			= @isTest
+				;
+	END CATCH;
+END;
+GO
+EXECUTE	vGaming.DailySummaryReport_Wrapper NULL, NULL, N'Adhoc Test';
 GO
