@@ -151,7 +151,7 @@ BEGIN;
 		SET		@L		= L
 			,	@Icon	= icon
 			,	isDone	= 1
-		WHERE	isDone	= 0;;
+		WHERE	isDone	= 0;
 
 		IF	@@ROWCOUNT = 0
 			BREAK;
