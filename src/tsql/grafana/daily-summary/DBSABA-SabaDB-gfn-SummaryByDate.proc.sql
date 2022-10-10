@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'gfn.SummaryByDate'
-	,	@Version	SYSNAME		= N'1.1.1'
+	,	@Version	SYSNAME		= N'1.2.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -34,8 +34,9 @@ AS
 		@Currency			[optional]		- The currency that will be reported.
 				<DEFAULT>	NULL			- All currencies
 
-	Version:	1.1.1
+	Version:	1.2.0
 	Revisions:
+		- [1.2.0]	20221010@Billy		Rearrange game category
 		- [1.1.1]	20210419@Billy		Change input encoding to percentage code - [Gitlab: #060]
 		- [1.1.0]	20210322@Billy		Update coding convention - Using base functions - [Gitlab: #059]
 		- [1.0.2]	20210208@Billy		View summary by currency - [Gitlab: #058]
@@ -87,7 +88,8 @@ BEGIN;
 							ELSE NULL
 						END
 		,	@Group	=	CASE gb.str
-							WHEN N'Game' THEN N'cfg.nameEN'
+							WHEN N'Game Type' THEN N'cfg.nameEN'
+							WHEN N'Game' THEN N'cfg.gameName'
 							WHEN N'Game Group' THEN N'cfg.groupName'
 							WHEN N'Currency' THEN N'ds.currency'
 							WHEN N'Summary' THEN N'"Summary"'

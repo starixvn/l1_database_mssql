@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'gfn.BetLogSummary'
-	,	@Version	SYSNAME		= N'1.1.1'
+	,	@Version	SYSNAME		= N'1.2.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -36,9 +36,10 @@ AS
 		@Var6				[optional]		- The currency to be selected.
 				<DEFAULT>	NULL			- All currencies
 
-	Version:	1.1.0
+	Version:	1.2.0
 	Revision:
-		- [1.1.0]	20210816@Billy		Add ɪɴsᴛᴀɴᴛ value
+		- [1.2.0]	20221010@Billy		Rearrange game category
+		- [1.1.1]	20210816@Billy		Add ɪɴsᴛᴀɴᴛ value
 		- [1.1.0]	20210617@Billy		Update query to match with new BI schema
 		- [1.0.0]	20210531@Billy		Release gfn.BetLogSummaryByDate
 		- [0.0.1]	20210531@Billy		Initital
@@ -92,7 +93,8 @@ BEGIN;
 							ELSE NULL
 						END
 		,	@Group	=	CASE gb.str
-							WHEN N'Game' THEN N'cfg.nameEN'
+							WHEN N'Game Type' THEN N'cfg.nameEN'
+							WHEN N'Game' THEN N'cfg.gameName'
 							WHEN N'Game Group' THEN N'cfg.groupName'
 							WHEN N'Currency' THEN N'bs.currency'
 							WHEN N'Summary' THEN N'"Summary"'

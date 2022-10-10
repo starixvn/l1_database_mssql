@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
-	,	@Version	SYSNAME		= N'1.2.0'
+	,	@Version	SYSNAME		= N'1.2.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -19,6 +19,7 @@ ALTER PROCEDURE	Noti.HourlyMarginAlert
 				,	@Config1		SQL_VARIANT		= NULL
 				,	@Config2		SQL_VARIANT		= NULL
 				,	@Config3		SQL_VARIANT		= NULL
+				,	@Config4		SQL_VARIANT		= NULL
 WITH ENCRYPTION
 AS
 /*
@@ -34,8 +35,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.2.0
+	Version:	1.2.1
 	Revision:
+		- [1.2.1]	20220727@Billy		Add threshold to limit result
 		- [1.2.0]	20220623@Billy		Using SQL Server 2019 syntax
 		- [1.1.0]	20220309@Billy		Can config some alert variables now
 		- [1.0.0]	20220308@Billy		Release Noti.HourlyMarginAlert
@@ -56,6 +58,7 @@ BEGIN;
 		,	@Histories		TINYINT
 		,	@NegAlert		TINYINT
 		,	@NullIgnore		TINYINT
+		,	@Threshold		MONEY
 		;
 
 	BEGIN TRY SELECT @ReportHour = CONVERT(DATETIME, @Var1   ) END TRY BEGIN CATCH SELECT @ReportHour = NULL END CATCH;
@@ -64,6 +67,7 @@ BEGIN;
 	BEGIN TRY SELECT @Histories  = CONVERT(TINYINT , @Config1) END TRY BEGIN CATCH SELECT @Histories  = NULL END CATCH;
 	BEGIN TRY SELECT @NegAlert   = CONVERT(TINYINT , @Config2) END TRY BEGIN CATCH SELECT @NegAlert   = NULL END CATCH;
 	BEGIN TRY SELECT @NullIgnore = CONVERT(TINYINT , @Config3) END TRY BEGIN CATCH SELECT @NullIgnore = NULL END CATCH;
+	BEGIN TRY SELECT @Threshold  = CONVERT(MONEY   , @Config4) END TRY BEGIN CATCH SELECT @Threshold  = NULL END CATCH;
 
 	SELECT	@ReportHour		= ISNULL(@ReportHour, DATEADD(HOUR, -1, GETUTCDATE()))
 		,	@ReportHour		= DATEADD(HOUR, DATEDIFF(HOUR, 0, @ReportHour), 0)
@@ -74,6 +78,7 @@ BEGIN;
 		,	@Histories		= ISNULL(@Histories , 5)
 		,	@NegAlert		= ISNULL(@NegAlert  , 3)
 		,	@NullIgnore		= ISNULL(@NullIgnore, 1)
+		,	@Threshold		= ISNULL(@Threshold , 0.01)
 		;
 
 	IF	NOT (DATEDIFF(HOUR, @ReportHour, GETUTCDATE()) BETWEEN 1 AND 7 * 24)
@@ -278,8 +283,21 @@ BEGIN;
 				) AS _t
 				WHERE	_t.winLoss IS NULL
 			) AS nu(n)
-			WHERE	(r.winloss < 0 AND nu.n < @NullIgnore)
-				OR	nm.n = @NegAlert
+			CROSS APPLY	(
+				SELECT	SUM(_r.turnOver) * @Threshold
+				FROM	@Report AS _r
+				WHERE	_r.L = @L
+			) AS turnover(threshold)
+			CROSS APPLY	(
+				SELECT	SUM(_r.winLoss) * @Threshold
+				FROM	@Report AS _r
+				WHERE	_r.L = @L
+					AND	_r.winLoss < 0
+			) AS loss(threshold)
+			WHERE	(r.turnOver >= turnover.threshold OR r.winLoss <= loss.threshold)
+				AND	(	(r.winloss < 0 AND nu.n < @NullIgnore)
+					OR	nm.n = @NegAlert
+					)
 		) AS msg
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;

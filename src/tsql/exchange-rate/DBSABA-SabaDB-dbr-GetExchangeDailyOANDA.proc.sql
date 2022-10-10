@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.GetExchangeDailyOANDA'
-	,	@Version	SYSNAME		= N'2.0.0'
+	,	@Version	SYSNAME		= N'2.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -18,9 +18,12 @@ AS
 	Parameters:
 		@Var1				[optional]		- The date of data that will be selected. The time is in UTC-4 timezone.
 				<DEFAULT>	NULL			- Newest date from OW OANDA
+		@Var2				[optional]		- The id of environment that will be selected
+				<DEFAULT>	NULL			- No data
 
-	Version:	2.0.0
+	Version:	2.0.1
 	Revision:
+		- [2.0.1]	20220715@Billy		Round to 10 decimal number
 		- [2.0.0]	20211214@Billy		Support multiple L system
 		- [1.0.0]	20211018@Billy		Release dbr.GetExchangeDailyOANDA
 		- [0.0.1]	20211018@Billy		Initital
@@ -109,33 +112,27 @@ SELECT	DISTINCT
 	,	[ExchangeDate]	= o.ExchangeDate
 	,	[Code]			= e.code
 	,	[BaseCode]		= N''' + b.base + N'''
-	,	[BaseRate]		= CAST(o.' + b.base + N' / e.MultipliedBy AS DECIMAL(28,20))
+	,	[BaseRate]		= CAST(o.' + b.base + N' / e.MultipliedBy AS DECIMAL(19,10))
 FROM		dbo.exchange AS e
 INNER JOIN	dbo.ExchangeDailyOanda AS o
 		ON	e.exchangeid = o.ExchangeId
 WHERE	e.IsActive = 1
 	AND	o.ExchangeDate = @Date
-	AND	e.code IN (' + SUBSTRING(sc.str, 0, LEN(sc.str)) + N')
+	AND	e.code IN (' + sc.str + N')
 ORDER BY e.code ASC
 OPTION (RECOMPILE);
 '
 			,	@Param = @Param + N'@Date DATETIME, @L TINYINT'
 		FROM	(
-			SELECT	N'''' + code + N''', '
+			SELECT	STRING_AGG(CONCAT(NCHAR(39), code, NCHAR(39)), N', ')
 			FROM	@Codes
-			FOR XML PATH ('')
-			,	TYPE
-		) AS xc(xml)
-		CROSS APPLY	(
-			SELECT	xc.xml.value('.', 'NVARCHAR(MAX)')
 		) AS sc(str)
 		CROSS APPLY	(
 			SELECT	TOP(1)
 					base
 			FROM	@Codes
 			WHERE	base IS NOT NULL
-		) AS b(base)
-		;
+		) AS b(base);
 		INSERT INTO	#ExchangeOANDA (L, ExchangeDate, Code, BaseCode, BaseRate)
 		EXECUTE	DB061KBT.bodb02.sys.sp_executesql @Query, @Param, @ExchangeDate, @L;
 	END;
