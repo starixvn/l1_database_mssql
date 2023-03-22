@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.BetLogSummaryReport'
-	,	@Version	SYSNAME		= N'1.2.0'
+	,	@Version	SYSNAME		= N'1.2.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -29,8 +29,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.2.0
+	Version:	1.2.1
 	Revision:
+		- [1.2.1]	20230322@Billy		Add metadata for megakeno
 		- [1.2.0]	20220623@Billy		Using SQL Server 2019 syntax
 		- [1.1.2]	20220621@Billy		Reformat messages
 		- [1.1.1]	20211018@Billy		Group by currency code
@@ -112,9 +113,10 @@ BEGIN;
 	-- List of systems --
 	INSERT INTO	@Systems
 			(id, name)
-	VALUES	( 1, N'cocos')
-		,	( 2, N'mobi')
-		,	( 3, N'instant')
+	VALUES	( 1, N'`SC`')
+		,	( 2, N'`SM`')
+		,	( 3, N'`SI`')
+		,	( 4, N'`MK`' )
 		;
 
 	-- List of currencies --
@@ -150,7 +152,7 @@ BEGIN;
 				,	[msg]	= CONCAT(N'---  ', @NL, l.name, l.L, N':  ', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
 			FROM	@Ls AS l
 			CROSS APPLY	(
-				SELECT	[grp]	= grp.CurGrp
+				SELECT	[grp]	= sb.sys
 					,	[msg]	= CONCAT(N'  ',  grp.CurGrp,  N' :  '
 								,	CONCAT_WS(N'  |  '
 									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
@@ -182,7 +184,7 @@ BEGIN;
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
 					AND	sb.L = l.L
-				GROUP BY grp.CurGrp
+				GROUP BY grp.CurGrp, sb.sys
 			) AS lmsg
 			GROUP BY l.L, l.name
 		) AS msg;
@@ -190,7 +192,7 @@ BEGIN;
 
 		SELECT	@Message	= CONCAT_WS(@NL
 							,	N'\\\[BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  '
-							,	N'  (system) currency : RC | BC | TO  '
+							,	N'  `(system) currency : RC | BC | TO`  '
 							,	STRING_AGG(msg.msg, @NL) WITHIN GROUP (ORDER BY msg.l)
 							)
 		FROM	(
