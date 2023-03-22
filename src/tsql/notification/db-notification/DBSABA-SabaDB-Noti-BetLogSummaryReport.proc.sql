@@ -79,9 +79,11 @@ BEGIN;
 			);
 
 	DECLARE	@Systems AS TABLE (
-				id				TINYINT
+				L				TINYINT
+			,	id				TINYINT
 			,	name			NVARCHAR(128)
-			,	PRIMARY KEY CLUSTERED (id)
+			,	filler			NVARCHAR(128)
+			,	PRIMARY KEY CLUSTERED (L, id)
 			);
 
 	DECLARE	@Exchanges AS TABLE (
@@ -112,11 +114,19 @@ BEGIN;
 
 	-- List of systems --
 	INSERT INTO	@Systems
-			(id, name)
-	VALUES	( 1, N'`SC`')
-		,	( 2, N'`SM`')
-		,	( 3, N'`SI`')
-		,	( 4, N'`MK`' )
+			(L, id, name, filler)
+	VALUES	(1,  1, N'SC', N'` `')
+		,	(1,  2, N'SM', N'` `')
+		,	(1,  3, N'SI', N'` `')
+		,	(1,  4, N'MK', N'` `')
+		,	(2,  1, N'VG', N'` `')
+		,	(2,  2, N'VGM', N'')
+		,	(2,  3, N'VGI', N'')
+		,	(2,  4, N'VMK', N'')
+		,	(3,  1, N'VG', N'` `')
+		,	(3,  2, N'VGM', N'')
+		,	(3,  3, N'VGI', N'')
+		,	(3,  4, N'VMK', N'')
 		;
 
 	-- List of currencies --
@@ -200,7 +210,7 @@ BEGIN;
 				,	[msg]	= CONCAT(N'---  ', @NL, l.name, l.L, N':  ', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
 			FROM	@Ls AS l
 			CROSS APPLY	(
-				SELECT	[grp]	= grp.CurGrp
+				SELECT	[grp]	= sb.sys
 					,	[msg]	= CONCAT(N'  ',  grp.CurGrp,  N' :  '
 								,	CONCAT_WS(N'  |  '
 									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
@@ -217,22 +227,25 @@ BEGIN;
 				) AS ex
 				CROSS APPLY	(
 					SELECT	TOP(1)
-							[CurGrp]	= CASE l.isExpanded
-											WHEN 1 THEN N'(' + _sys.name + N') ' + UPPER(ex.currency)
-											ELSE N'(' + _sys.name + N') Total'
+							[CurGrp]	= CONCAT(N'(`', _sys.name, N'`', _sys.filler, N') '
+										, CASE l.isExpanded
+											WHEN 1 THEN UPPER(ex.currency)
+											ELSE N'Total'
 											END
+										)
 					FROM	(
-						SELECT	id, name
+						SELECT	id, name, filler
 						FROM	@Systems
-						WHERE	id = sb.sys
+						WHERE	L = sb.L
+							AND id = sb.sys
 						UNION
-						SELECT	NULL, N'***'
+						SELECT	NULL, N'***', N''
 					) AS _sys
 					ORDER BY id DESC
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
 					AND	sb.L = l.L
-				GROUP BY grp.CurGrp
+				GROUP BY grp.CurGrp, sb.sys
 			) AS lmsg
 			GROUP BY l.L, l.name
 		) AS msg;
