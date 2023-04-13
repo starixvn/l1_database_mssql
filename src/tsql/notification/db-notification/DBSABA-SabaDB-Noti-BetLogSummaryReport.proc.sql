@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.BetLogSummaryReport'
-	,	@Version	SYSNAME		= N'1.2.1'
+	,	@Version	SYSNAME		= N'1.2.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -29,8 +29,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.2.1
+	Version:	1.2.2
 	Revision:
+		- [1.2.2]	20230413@Billy		Reformat due to Skynex changes
 		- [1.2.1]	20230322@Billy		Add metadata for megakeno
 		- [1.2.0]	20220623@Billy		Using SQL Server 2019 syntax
 		- [1.1.2]	20220621@Billy		Reformat messages
@@ -82,7 +83,7 @@ BEGIN;
 				L				TINYINT
 			,	id				TINYINT
 			,	name			NVARCHAR(128)
-			,	filler			NVARCHAR(128)
+			,	maxNameLen		TINYINT
 			,	PRIMARY KEY CLUSTERED (L, id)
 			);
 
@@ -114,20 +115,27 @@ BEGIN;
 
 	-- List of systems --
 	INSERT INTO	@Systems
-			(L, id, name, filler)
-	VALUES	(1,  1, N'SC', N'` `')
-		,	(1,  2, N'SM', N'` `')
-		,	(1,  3, N'SI', N'` `')
-		,	(1,  4, N'MK', N'` `')
-		,	(2,  1, N'VG', N'` `')
-		,	(2,  2, N'VGM', N'')
-		,	(2,  3, N'VGI', N'')
-		,	(2,  4, N'VMK', N'')
-		,	(3,  1, N'VG', N'` `')
-		,	(3,  2, N'VGM', N'')
-		,	(3,  3, N'VGI', N'')
-		,	(3,  4, N'VMK', N'')
+			(L, id, name)
+	VALUES	(1,  1, N'SC')
+		,	(1,  2, N'SM')
+		,	(1,  3, N'SI')
+		,	(1,  4, N'MK')
+		,	(2,  1, N'VG')
+		,	(2,  2, N'VGM')
+		,	(2,  3, N'VGI')
+		,	(2,  4, N'VMK')
+		,	(3,  1, N'VG')
+		,	(3,  2, N'VGM')
+		,	(3,  3, N'VGI')
+		,	(3,  4, N'VMK')
 		;
+
+	UPDATE	s
+	SET		maxNameLen = s.maxNameLenCalc
+	FROM	(
+		SELECT	*, maxNameLenCalc = MAX(LEN(name)) OVER()
+		FROM	@Systems
+	) AS s;
 
 	-- List of currencies --
 	INSERT INTO	@Exchanges (currency, code)
@@ -159,17 +167,16 @@ BEGIN;
 							)
 		FROM	(
 			SELECT	[l]		= l.L
-				,	[msg]	= CONCAT(N'---  ', @NL, l.name, l.L, N':  ', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
+				,	[msg]	= CONCAT(N'', @NL, l.name, l.L, N':', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
 			FROM	@Ls AS l
 			CROSS APPLY	(
 				SELECT	[grp]	= sb.sys
 					,	[msg]	= CONCAT(N'  ',  grp.CurGrp,  N' :  '
-								,	CONCAT_WS(N'  |  '
-									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
-									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
-									,	CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+								,	CONCAT_WS(N' | '
+									,	FORMAT(SUM(CAST(sb.requestCount AS MONEY)), N'#,##0.##')
+									,	FORMAT(SUM(CAST(sb.betCount AS MONEY)), N'#,##0.##')
+									,	FORMAT(SUM(CAST(sb.turnOver AS MONEY)), N'#,##0.##')
 									)
-								,	N'  '
 								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
@@ -179,14 +186,17 @@ BEGIN;
 				) AS ex
 				CROSS APPLY	(
 					SELECT	TOP(1)
-							[CurGrp]	= CASE l.isExpanded
-											WHEN 1 THEN N'(' + _sys.name + N') ' + UPPER(ex.currency)
-											ELSE N'(' + _sys.name + N') Total'
+							[CurGrp]	= CONCAT(N'(', _sys.name, N') '
+										, CASE l.isExpanded
+											WHEN 1 THEN UPPER(ex.currency)
+											ELSE N'Total'
 											END
+										)
 					FROM	(
-						SELECT	id, name
+						SELECT	id, [name] = RIGHT(CONCAT(N'   ', name), maxNameLen)
 						FROM	@Systems
-						WHERE	id = sb.sys
+						WHERE	L = sb.L
+							AND id = sb.sys
 						UNION
 						SELECT	NULL, N'***'
 					) AS _sys
@@ -201,23 +211,22 @@ BEGIN;
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
 		SELECT	@Message	= CONCAT_WS(@NL
-							,	N'\\\[BetLog Summary ' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'\]  '
-							,	N'  `(system) currency : RC | BC | TO`  '
+							,	N'[BetLog Summary `' + CONVERT(NVARCHAR(MAX), @ReportDate, 23) + N'`]'
+							,	N'  (`system`) currency :  RC | BC | TO'
 							,	STRING_AGG(msg.msg, @NL) WITHIN GROUP (ORDER BY msg.l)
 							)
 		FROM	(
 			SELECT	[l]		= l.L
-				,	[msg]	= CONCAT(N'---  ', @NL, l.name, l.L, N':  ', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
+				,	[msg]	= CONCAT(N'', @NL, l.name, l.L, N':', @NL, STRING_AGG(lmsg.msg, @NL) WITHIN GROUP (ORDER BY lmsg.grp))
 			FROM	@Ls AS l
 			CROSS APPLY	(
 				SELECT	[grp]	= sb.sys
 					,	[msg]	= CONCAT(N'  ',  grp.CurGrp,  N' :  '
-								,	CONCAT_WS(N'  |  '
-									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.requestCount AS MONEY)), 1), '.00', '')
-									,	REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', '')
-									,	CONVERT(NVARCHAR(MAX), SUM(CAST(sb.turnOver AS MONEY)), 1)
+								,	CONCAT_WS(N' | '
+									,	FORMAT(SUM(CAST(sb.requestCount AS MONEY)), N'#,##0.##')
+									,	FORMAT(SUM(CAST(sb.betCount AS MONEY)), N'#,##0.##')
+									,	FORMAT(SUM(CAST(sb.turnOver AS MONEY)), N'#,##0.##')
 									)
-								,	N'  '
 								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
@@ -227,19 +236,19 @@ BEGIN;
 				) AS ex
 				CROSS APPLY	(
 					SELECT	TOP(1)
-							[CurGrp]	= CONCAT(N'(`', _sys.name, N'`', _sys.filler, N') '
+							[CurGrp]	= CONCAT(N'(`', _sys.name, N'`) '
 										, CASE l.isExpanded
 											WHEN 1 THEN UPPER(ex.currency)
 											ELSE N'Total'
 											END
 										)
 					FROM	(
-						SELECT	id, name, filler
+						SELECT	id, [name] = RIGHT(CONCAT(N'   ', name), maxNameLen)
 						FROM	@Systems
 						WHERE	L = sb.L
 							AND id = sb.sys
 						UNION
-						SELECT	NULL, N'***', N''
+						SELECT	NULL, N'***'
 					) AS _sys
 					ORDER BY id DESC
 				) AS grp

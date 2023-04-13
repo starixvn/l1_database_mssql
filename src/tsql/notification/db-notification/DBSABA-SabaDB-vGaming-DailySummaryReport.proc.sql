@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'vGaming.DailySummaryReport'
-	,	@Version	SYSNAME		= N'2.2.0'
+	,	@Version	SYSNAME		= N'2.2.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -30,8 +30,9 @@ AS
 				<DEFAULT>	NULL			- Treat as if testing
 
 
-	Version:	2.2.0
+	Version:	2.2.1
 	Revision:
+		- [2.2.1]	20230413@Billy		Reformat due to Skynex changes
 		- [2.2.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [2.1.2]	20220621@Billy		Reformat messages
 		- [2.1.1]	20211020@Billy		Group by currency code
@@ -232,9 +233,9 @@ BEGIN;
 										CONCAT(
 											N'[', currency, N' (', CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END, N')] '
 										,	CONCAT_WS(N'|'
-											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(betCount AS MONEY), 1), '.00', '')
-											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(stake AS MONEY), 1), '.00', '')
-											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(winLost AS MONEY), 1), '.00', '')
+											,	FORMAT(CAST(betCount AS MONEY), N'#,##0.##')
+											,	FORMAT(CAST(stake AS MONEY), N'#,##0.##')
+											,	FORMAT(CAST(winLost AS MONEY), N'#,##0.##')
 											)
 										)
 									,	@NL
@@ -246,15 +247,15 @@ BEGIN;
 			EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
 			SELECT	@Message	= CONCAT_WS(@NL
-								,	CONCAT(N'\\\[', @Status, N'\] \\\[vGaming Summary ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]  ')
-								,	CONCAT(N'\\\[vG', @L, N' \(', @gameTypeId, N'.', @gameId, N'\)\] ', @GameType, N': \(BC\|TO\|WL\)  ')
+								,	CONCAT(N'[', @Status, N'] [vGaming Summary ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N']  ')
+								,	CONCAT(N'[vG', @L, N' (', @gameTypeId, N'.', @gameId, N')] ', @GameType, N': (BC|TO|WL)  ')
 								,	STRING_AGG(
 										CONCAT(
-											N'\\\[', currency, N' \(', CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END, N'\)\] '
+											N'[', currency, N' (', CASE isCash WHEN 0 THEN N'CRE' WHEN 1 THEN N'DEP' WHEN 2 THEN N'null' ELSE N'invalid' END, N')] '
 										,	CONCAT_WS(N'|'
-											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(betCount AS MONEY), 1), '.00', '')
-											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(stake AS MONEY), 1), '.00', '')
-											,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(winLost AS MONEY), 1), '.00', '')
+											,	FORMAT(CAST(betCount AS MONEY), N'#,##0.##')
+											,	FORMAT(CAST(stake AS MONEY), N'#,##0.##')
+											,	FORMAT(CAST(winLost AS MONEY), N'#,##0.##')
 											)
 										)
 									,	@NL
@@ -288,9 +289,9 @@ BEGIN;
 				SELECT	[grp]	= grp.CurGrp
 					,	[str]	= CONCAT_WS(@NL
 								,	CONCAT(N'  ', grp.CurGrp)
-								,	CONCAT(N'    - BC: ', REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', ''))
-								,	CONCAT(N'    - TO: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1))
-								,	CONCAT(N'    - WL: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1))
+								,	CONCAT(N'    - BC: ', FORMAT(SUM(CAST(sb.betCount AS MONEY)), N'#,##0.##'))
+								,	CONCAT(N'    - TO: ', FORMAT(SUM(CAST(sb.stake AS MONEY)), N'#,##0.##'))
+								,	CONCAT(N'    - WL: ', FORMAT(SUM(CAST(sb.stake - sb.payOut AS MONEY)), N'#,##0.##'))
 								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e
@@ -313,7 +314,7 @@ BEGIN;
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
 		SELECT	@Message	= CONCAT_WS(@NL
-							,	CONCAT(N'\\\[', @Status, N'\] \\\[vGaming Summary ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]')
+							,	CONCAT(N'[', @Status, N'] [vGaming Summary ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N']')
 							,	STRING_AGG(
 									g.str
 								,	@NL
@@ -330,9 +331,9 @@ BEGIN;
 				SELECT	[grp]	= grp.CurGrp
 					,	[str]	= CONCAT_WS(@NL
 								,	CONCAT(N'  `', grp.CurGrp, N'`')
-								,	CONCAT(N'   \- BC: ', REPLACE(CONVERT(NVARCHAR(MAX), SUM(CAST(sb.betCount AS MONEY)), 1), '.00', ''))
-								,	CONCAT(N'   \- TO: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake AS MONEY)), 1))
-								,	CONCAT(N'   \- WL: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.stake - sb.payOut AS MONEY)), 1))
+								,	CONCAT(N'    - BC:  `', FORMAT(SUM(CAST(sb.betCount AS MONEY)), N'#,##0.##'), N'`')
+								,	CONCAT(N'    - TO:  `', FORMAT(SUM(CAST(sb.stake AS MONEY)), N'#,##0.##'), N'`')
+								,	CONCAT(N'    - WL:  `', FORMAT(SUM(CAST(sb.stake - sb.payOut AS MONEY)), N'#,##0.##'), N'`')
 								)
 				FROM		#DS_DailySummary AS sb
 				LEFT JOIN	@Exchanges AS e

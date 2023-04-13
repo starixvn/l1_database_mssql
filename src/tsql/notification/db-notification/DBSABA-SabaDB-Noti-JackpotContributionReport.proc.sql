@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'Noti.JackpotContributionReport'
-	,	@Version	SYSNAME		= N'1.3.0'
+	,	@Version	SYSNAME		= N'1.3.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -29,8 +29,10 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.3.0
+	Version:	1.3.2
 	Revision:
+		- [1.3.2]	20230413@Billy		Reformat due to Skynex changes
+		- [1.3.1]	20230328@Billy		Add current jackpot value
 		- [1.3.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [1.2.2]	20220621@Billy		Reformat message
 		- [1.2.1]	20211015@Billy		Configure jackpot contribution rate value
@@ -92,6 +94,13 @@ BEGIN;
 			,	JPCont			DECIMAL(19,4)
 			,	PRIMARY KEY CLUSTERED (L, gameTypeId, gameId, currency)
 			);
+
+	DECLARE	@CurrentJackpots AS TABLE (
+				L				TINYINT
+			,	base			DECIMAL(19,4)
+			,	amount			DECIMAL(19,4)
+			,	PRIMARY KEY CLUSTERED (L, base)
+			)
 
 	CREATE TABLE	#OW_JPContribution (
 						gameTypeId		INT
@@ -195,6 +204,19 @@ WHERE	cfg.groupName = "Slots"
 				INSERT	( L,     gameTypeId,     gameId,     gameType,     currency,     JPCont)
 				VALUES	(@L, tmp.gameTypeId, tmp.gameId, tmp.gameType, tmp.currency, tmp.JPCont)
 			;
+
+			INSERT INTO	@CurrentJackpots (L, base, amount)
+			EXECUTE	base.ExecuteSabaQuery N'\
+SELECT	0, pool, SUM(amount)
+FROM	minigame.jackpots
+WHERE	hitAt IS NULL
+GROUP BY pool;
+', @L, 0, 1;
+
+			UPDATE @CurrentJackpots
+			SET		L = @L
+			WHERE	L = 0;
+
 			RAISERROR('Executed on L%d.', 0, 0, @L) WITH NOWAIT;
 		END;
 	END;
@@ -242,7 +264,7 @@ WHERE	cfg.groupName = "Slots"
 								)
 			FROM	(
 				SELECT	[currency]	= currency
-					,	[str]		= CONCAT(N'[', currency, N'] ', REPLACE(CONVERT(NVARCHAR(MAX), CAST(JPCont AS MONEY), 2), '.0000', ''))
+					,	[str]		= CONCAT(N'[', currency, N'] ', FORMAT(CAST(JPCont AS MONEY), N'#,##0.####'))
 				FROM	@Tmp_JPContribution
 				WHERE	L = @L
 					AND	gameId = @GameId
@@ -250,12 +272,12 @@ WHERE	cfg.groupName = "Slots"
 			EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
 			SELECT	@Message	= CONCAT_WS(@NL
-								,	CONCAT(N'\\\[', @Status, N'\] \\\[Jackpot Contribution ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]  ')
-								,	CONCAT(N'\\\[L', @L, N' \(', @gameTypeId, N'.', @gameId, N'\)\] ', @GameType, N': \(JC\)')
+								,	CONCAT(N'[', @Status, N'] [Jackpot Contribution ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N']  ')
+								,	CONCAT(N'[L', @L, N' (', @gameTypeId, N'.', @gameId, N')] ', @GameType, N': (JC)')
 								,	STRING_AGG(
 										CONCAT_WS(@NL
 										,	N'  '
-										,	CONCAT(N'\\\[', currency, N'\] ', REPLACE(CONVERT(NVARCHAR(MAX), CAST(JPCont AS MONEY), 2), '.0000', ''))
+										,	CONCAT(N'[', currency, N'] ', FORMAT(CAST(JPCont AS MONEY), N'#,##0.####'))
 										)
 									,	@NL
 									) WITHIN GROUP (ORDER BY currency)
@@ -288,7 +310,7 @@ WHERE	cfg.groupName = "Slots"
 				SELECT	[grp]	= grp.CurGrp
 					,	[str]	= CONCAT_WS(@NL
 								,	CONCAT(N'  ', grp.CurGrp)
-								,	CONCAT(N'  - JC: ', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2))
+								,	CONCAT(N'    - JC: ', FORMAT(SUM(CAST(sb.JPCont AS MONEY)), N'#,##0.####'))
 								)
 				FROM		#DS_JPContribution AS sb
 				CROSS APPLY	(
@@ -302,11 +324,12 @@ WHERE	cfg.groupName = "Slots"
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
 		SELECT	@Message	= CONCAT_WS(@NL
-							,	CONCAT(N'\\\[', @Status, N'\] \\\[Jackpot Contribution ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N'\]  ')
+							,	CONCAT(N'[', @Status, N'] [Jackpot Contribution ', CONVERT(NVARCHAR(MAX), @ReportDate, 23), N']  ')
 							,	STRING_AGG(
 									CONCAT_WS(@NL, N''
-									,	N'---'
 									,	CONCAT(N'L', l.L, N':')
+									,	jp.str
+									,	N''
 									,	g.str
 									)
 								,	@NL
@@ -314,12 +337,28 @@ WHERE	cfg.groupName = "Slots"
 							)
 		FROM	@Ls AS l
 		CROSS APPLY	(
+			SELECT	[str] = CONCAT_WS(@NL
+							,	N'  `🍯`:'
+							,	STRING_AGG(
+									CONCAT(N'    - `', RIGHT(cjp.baseStr, cjp.baseMaxLen) ,N'` : `', cjp.amountStr, N'`')
+								,	@NL
+								) WITHIN GROUP (ORDER BY cjp.baseStr)
+							)
+			FROM	(
+				SELECT	[baseStr]		= FORMAT(_cjp.base, N'     #0.#')
+					,	[baseMaxLen]	= MAX(LEN(FORMAT(_cjp.base, N'#0.#'))) OVER()
+					,	[amountStr]		= FORMAT(_cjp.amount, N'#,##0.####')
+				FROM	@CurrentJackpots AS _cjp
+				WHERE	_cjp.L = l.L
+			) AS cjp
+		) AS jp
+		CROSS APPLY	(
 			SELECT	[str]	= STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
 			FROM	(
 				SELECT	[grp]	= grp.CurGrp
 					,	[str]	= CONCAT_WS(@NL
 								,	CONCAT(N'  `', grp.CurGrp, N'`')
-								,	CONCAT(N'  \- JC: `', CONVERT(NVARCHAR(MAX), SUM(CAST(sb.JPCont AS MONEY)), 2), N'`')
+								,	CONCAT(N'    - JC : `', FORMAT(SUM(CAST(sb.JPCont AS MONEY)), N'#,##0.####'), N'`')
 								)
 				FROM		#DS_JPContribution AS sb
 				CROSS APPLY	(

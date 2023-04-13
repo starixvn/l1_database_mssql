@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
-	,	@Version	SYSNAME		= N'1.2.1'
+	,	@Version	SYSNAME		= N'1.2.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -35,8 +35,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	1.2.1
+	Version:	1.2.2
 	Revision:
+		- [1.2.2]	20230413@Billy		Reformat due to Skynex changes
 		- [1.2.1]	20220727@Billy		Add threshold to limit result
 		- [1.2.0]	20220623@Billy		Using SQL Server 2019 syntax
 		- [1.1.0]	20220309@Billy		Can config some alert variables now
@@ -100,7 +101,7 @@ BEGIN;
 			,	isDone			BIT
 			,	PRIMARY KEY CLUSTERED (L)
 			);
-	
+
 	DECLARE	@Hours AS TABLE (
 				h				DATETIME
 			,	isDone			BIT
@@ -189,35 +190,22 @@ BEGIN;
 			,	[betCount]		= SUM(s.betCount)
 			,	[turnOver]		= SUM(s.stake)
 			,	[winLoss]		= SUM(s.stake) - SUM(s.payOut)
-			,	[margin]		= (SUM(s.stake) - SUM(s.payOut)) / SUM(s.stake)
+			,	[margin]		= (SUM(s.stake) - SUM(s.payOut)) / ISNULL(NULLIF(SUM(s.stake), 0), 1)
 		FROM	#HourlySummary AS s
 		WHERE	s.L = @L
 			AND	s.currency <> 'UUS'
 		GROUP BY	s.L, s.reportTime, s.gameType;
 
-		SELECT	@Message	= CONCAT(@Icon, N'  NEGATIVE MARGIN ALERT @' + CONVERT(NVARCHAR(MAX), @ReportHour, 127), N'  ', @NL
+		SELECT	@Message	= CONCAT(@Icon, N'  NEGATIVE MARGIN ALERT @`' + CONVERT(NVARCHAR(MAX), @ReportHour, 127), N'`', @NL
 							,	STRING_AGG(msg.msg, @NL) WITHIN GROUP (ORDER BY msg.wl)
 							)
 		FROM	(
 			SELECT	[wl]	= r.winloss
 				,	[msg]	= CONCAT_WS(@NL
-							,	N'---  '
 							,	N''
 							,	N'「' + r.gameType + N'」  ' + ds.str + N'  '
-							,	CONCAT(
-									N'Last Hour:  `'
-								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(lh.winLoss AS MONEY), 1), '.00', '')
-								,	N'` / `'
-								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(lh.turnOver AS MONEY), 1), '.00', '')
-								,	N'`  '
-								)
-							,	CONCAT(
-									N'Today:  `'
-								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.winLoss AS MONEY), 1), '.00', '')
-								,	N'` / `'
-								,	REPLACE(CONVERT(NVARCHAR(MAX), CAST(r.turnOver AS MONEY), 1), '.00', '')
-								,	N'`  '
-								)
+							,	CONCAT(N'Last Hour:  `', FORMAT(lh.winLoss, '#,##0.##'), N'` / `',	FORMAT(lh.turnOver, '#,##0.##'), N'`')
+							,	CONCAT(N'Today:  `', FORMAT(r.winLoss, '#,##0.##'), N'` / `',	FORMAT(r.turnOver, '#,##0.##'), N'`')
 							)
 			FROM	(
 				SELECT	[gameType]	= _r.gameType
