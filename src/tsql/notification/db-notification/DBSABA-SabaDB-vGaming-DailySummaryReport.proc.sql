@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'vGaming.DailySummaryReport'
-	,	@Version	SYSNAME		= N'2.2.1'
+	,	@Version	SYSNAME		= N'2.2.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -30,8 +30,9 @@ AS
 				<DEFAULT>	NULL			- Treat as if testing
 
 
-	Version:	2.2.1
+	Version:	2.2.2
 	Revision:
+		- [2.2.2]	20230428@Billy		Treat vG as one platfrom
 		- [2.2.1]	20230413@Billy		Reformat due to Skynex changes
 		- [2.2.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [2.1.2]	20220621@Billy		Reformat messages
@@ -170,7 +171,7 @@ BEGIN;
 
 			MERGE INTO	#DS_DailySummary AS ds
 			USING		@Tmp_DailySummary AS tmp
-					ON	ds.L = @L
+					ON	ds.L = 0
 					AND	COALESCE(NULLIF(ds.isCash, 2), @isCash, 2) = COALESCE(NULLIF(tmp.isCash, 2), @isCash, 2)
 					AND	ds.gameTypeId = tmp.gameTypeId
 					AND	ds.currency = tmp.currency
@@ -181,7 +182,7 @@ BEGIN;
 				,	ds.payOut += tmp.payOut
 			WHEN NOT MATCHED THEN
 				INSERT	( L,     gameTypeId,     gameId,     gameType,     currency,                     isCash                 ,     betCount,     stake,     payOut)
-				VALUES	(@L, tmp.gameTypeId, tmp.gameId, tmp.gameType, tmp.currency, COALESCE(NULLIF(tmp.isCash, 2), @isCash, 2), tmp.betCount, tmp.stake, tmp.payOut)
+				VALUES	( 0, tmp.gameTypeId, tmp.gameId, tmp.gameType, tmp.currency, COALESCE(NULLIF(tmp.isCash, 2), @isCash, 2), tmp.betCount, tmp.stake, tmp.payOut)
 			;
 			RAISERROR(N'\
 [INFO]  Executed on L%d.', 0, 0, @L) WITH NOWAIT;
@@ -277,15 +278,13 @@ BEGIN;
 			,	@Message	= STRING_AGG(
 								g.str
 							,	@NL
-							) WITHIN GROUP (ORDER BY g.grp)
+							)
 		FROM	(
-			SELECT	[grp]	= l.L
-				,	[str]	= CONCAT_WS(@NL
-							,	CONCAT(N'vG', l.L, N':  ')
+			SELECT	[str]	= CONCAT_WS(@NL
+							,	N'vG:  '
 							,	STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
 							)
-			FROM		@Ls AS l
-			CROSS APPLY	(
+			FROM		(
 				SELECT	[grp]	= grp.CurGrp
 					,	[str]	= CONCAT_WS(@NL
 								,	CONCAT(N'  ', grp.CurGrp)
@@ -300,16 +299,11 @@ BEGIN;
 					SELECT	[currency]	= ISNULL(e.code, sb.currency)
 				) AS ex
 				CROSS APPLY	(
-					SELECT	[CurGrp]	= CASE l.isExpanded
-											WHEN 1 THEN N'(' + CASE sb.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' WHEN 2 THEN N'nul' ELSE N'***' END + N') ' +  UPPER(ex.currency)
-											ELSE N'Total'
-											END
+					SELECT	[CurGrp]	= N'(' + CASE sb.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' WHEN 2 THEN N'nul' ELSE N'***' END + N') ' +  UPPER(ex.currency)
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
-					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
 			) AS c
-			GROUP BY l.L
 		) AS g;
 		EXECUTE	Letstalk.SendNotification @Message, @Title, @isTest;
 
@@ -318,16 +312,14 @@ BEGIN;
 							,	STRING_AGG(
 									g.str
 								,	@NL
-								) WITHIN GROUP (ORDER BY g.grp)
+								)
 							)
 		FROM	(
-			SELECT	[grp]	= l.L
-				,	[str]	= CONCAT_WS(@NL
-							,	CONCAT(N'vG', l.L, N':  ')
+			SELECT	[str]	= CONCAT_WS(@NL
+							,	N'vG:  '
 							,	STRING_AGG(c.str, @NL) WITHIN GROUP (ORDER BY c.grp)
 							)
-			FROM		@Ls AS l
-			CROSS APPLY	(
+			FROM		(
 				SELECT	[grp]	= grp.CurGrp
 					,	[str]	= CONCAT_WS(@NL
 								,	CONCAT(N'  `', grp.CurGrp, N'`')
@@ -342,16 +334,11 @@ BEGIN;
 					SELECT	[currency]	= ISNULL(e.code, sb.currency)
 				) AS ex
 				CROSS APPLY	(
-					SELECT	[CurGrp]	= CASE l.isExpanded
-											WHEN 1 THEN N'(' + CASE sb.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' WHEN 2 THEN N'nul' ELSE N'***' END + N') ' +  UPPER(ex.currency)
-											ELSE N'Total'
-											END
+					SELECT	[CurGrp]	= N'(' + CASE sb.isCash WHEN 0 THEN N'Cre' WHEN 1 THEN N'Dep' WHEN 2 THEN N'nul' ELSE N'***' END + N') ' +  UPPER(ex.currency)
 				) AS grp
 				WHERE	ex.currency <> 'UUS'
-					AND	sb.L = l.L
 				GROUP BY grp.CurGrp
 			) AS c
-			GROUP BY l.L
 		) AS g;
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;	-- Summary --
