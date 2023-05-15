@@ -143,4 +143,20 @@ OPTION (RECOMPILE);
 	RETURN	DATEDIFF(MILLISECOND, @Timer, SYSUTCDATETIME());
 END;
 GO
+BEGIN TRY;
+	IF	TYPE_ID('dbr.Exchanges') IS NOT NULL
+		DROP TYPE dbr.Exchanges;
+
+	CREATE TYPE	dbr.Exchanges AS TABLE (
+		L				TINYINT
+	,	exchangeDate	DATE
+	,	code			VARCHAR(16)
+	,	baseCode		VARCHAR(16)
+	,	baseRate		DECIMAL(19,10)
+	,	PRIMARY KEY NONCLUSTERED (L, code, baseCode, exchangeDate)
+	) WITH (MEMORY_OPTIMIZED = ON);
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
+GO
 EXECUTE	dbr.GetExchangeDailyOANDA NULL, 1;

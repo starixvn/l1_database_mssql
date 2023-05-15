@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.SB_DailySummary'
-	,	@Version	SYSNAME		= N'1.1.1'
+	,	@Version	SYSNAME		= N'1.1.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -26,8 +26,9 @@ AS
 		@Var3				[optional]		- The date of data that will be selected. The time is in UTC timezone.
 				<DEFAULT>	NULL			- Yesterday 00:00:00 AM
 
-	Version:	1.1.1
+	Version:	1.1.2
 	Revision:
+		- [1.1.2]	20230511@Billy		Add GROUP BY due to multiple operatorId
 		- [1.1.1]	20210722@Billy		Add option to query SIT environment
 		- [1.1.0]	20210617@Billy		Update query to match with new BI schema
 		- [1.0.0]	20210529@Billy		Release dbr.SB_DailySummary
@@ -74,6 +75,7 @@ INNER JOIN	summary.game_summary_config AS cfg
 		ON	ds.gameId = cfg.gameId
 WHERE	ds.time >= "' + CONVERT(NVARCHAR(MAX), @_ReportDate, 127) + N'"
 	AND	ds.time < "' + CONVERT(NVARCHAR(MAX), DATEADD(DAY, 1, @_ReportDate), 127) + N'"
+GROUP BY ds.gameId, ds.currency, ds.isCash
 '
 		;
 

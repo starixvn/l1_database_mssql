@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.SB_HourlySummary'
-	,	@Version	SYSNAME		= N'0.0.2'
+	,	@Version	SYSNAME		= N'1.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -26,8 +26,9 @@ AS
 		@Var3				[optional]		- The date of data that will be selected. The time is in UTC timezone.
 				<DEFAULT>	NULL			- Yesterday 00:00:00 AM
 
-	Version:	0.0.2
+	Version:	1.0.1
 	Revision:
+		- [1.0.1]	20230511@Billy		Add GROUP BY due to multiple operatorId
 		- [1.0.0]	20220217@Billy		Release dbr.SB_HourlySummary
 		- [0.0.2]	20220225@Billy		Add time field
 		- [0.0.1]	20220217@Billy		Initital
@@ -75,6 +76,7 @@ INNER JOIN	summary.game_summary_config AS cfg
 		ON	s.gameId = cfg.gameId
 WHERE	s.time >= "' + CONVERT(NVARCHAR(MAX), @_ReportHour, 127) + N'"
 	AND	s.time < "' + CONVERT(NVARCHAR(MAX), DATEADD(HOUR, 1, @_ReportHour), 127) + N'"
+GROUP BY s.time, s.gameId, s.currency, s.isCash
 '
 		;
 

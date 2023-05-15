@@ -1,0 +1,13 @@
+BEGIN TRY;
+	IF	TYPE_ID('base.Hours') IS NOT NULL
+		DROP TYPE base.Hours;
+
+	CREATE TYPE	base.Hours AS TABLE (
+		h				DATETIME
+	,	isDone			BIT			DEFAULT (0)
+	,	PRIMARY KEY NONCLUSTERED (h)
+	) WITH (MEMORY_OPTIMIZED = ON);
+
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
