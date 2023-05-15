@@ -138,7 +138,7 @@ BEGIN;
 
 		DELETE @Exchanges;
 		INSERT INTO	@Exchanges (exDate, code, rate)
-		EXECUTE	dbr.SB_LastExchangeRate @L, 1;
+		EXECUTE	dbr.L_LastExchangeRate @L, 1;
 
 
 		DELETE	@HourlySummary;

@@ -1,11 +1,11 @@
 USE SabaDB;
-DECLARE	@Procedure	SYSNAME		= N'dbr.SB_LastExchangeRate'
+DECLARE	@Procedure	SYSNAME		= N'dbr.L_LastExchangeRate'
 	,	@Version	SYSNAME		= N'1.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
 GO
-ALTER PROCEDURE	dbr.SB_LastExchangeRate
+ALTER PROCEDURE	dbr.L_LastExchangeRate
 					@L				TINYINT
 				,	@Env			TINYINT
 WITH ENCRYPTION
@@ -22,7 +22,7 @@ AS
 
 	Version:	1.0.0
 	Revision:
-		- [1.0.0]	20230515@Billy		Release dbr.SB_LastExchangeRate
+		- [1.0.0]	20230515@Billy		Release dbr.L_LastExchangeRate
 		- [0.0.1]	20230515@Billy		Initital
 */
 BEGIN;
@@ -65,5 +65,5 @@ END TRY BEGIN CATCH;
 	EXECUTE	logger.Error N'Type'
 END CATCH;
 GO
-EXECUTE	dbr.SB_LastExchangeRate 1, 1;
-EXECUTE	dbr.SB_LastExchangeRate 2, 1;
+EXECUTE	dbr.L_LastExchangeRate 1, 1;
+EXECUTE	dbr.L_LastExchangeRate 2, 1;
