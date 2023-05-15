@@ -6,7 +6,7 @@ EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
 GO
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert_Wrapper'
-	,	@Version	SYSNAME		= N'1.0.0'
+	,	@Version	SYSNAME		= N'2.0.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -289,8 +289,9 @@ AS
 		@Var3:				[optional]		- The title for error message
 				<DEFAULT>	NULL			- Default title
 
-	Version:	1.0.0
+	Version:	2.0.0
 	Revision:
+		- [2.0.0]	20230515@Billy		Rename parameters
 		- [1.0.0]	20220623@Billy		Release Noti.HourlyMarginAlert_Wrapper
 		- [0.0.1]	20220623@Billy		Initital
 */
