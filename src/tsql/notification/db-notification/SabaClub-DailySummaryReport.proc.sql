@@ -12,7 +12,7 @@ EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
 GO
 ALTER PROCEDURE	SabaClub.DailySummaryReport
-					@reportDate		DATETIME
+					@reportDate		DATE
 				,	@isTest			BIT				= 1
 WITH ENCRYPTION
 AS
@@ -54,7 +54,9 @@ BEGIN;
 		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
 		;
 
-	SELECT	@reportDate = ISNULL(@reportDate, CONVERT(DATE, DATEADD(DAY, -1, GETUTCDATE())));
+	SELECT	@ReportDate		= ISNULL(@reportDate, DATEADD(DAY, -1, GETUTCDATE()))
+		,	@isTest			= ISNULL(@isTest, 1)
+		;
 
 	IF	NOT (DATEDIFF(DAY, @reportDate, GETUTCDATE()) BETWEEN 1 AND 7)
 	BEGIN;
@@ -159,7 +161,7 @@ BEGIN;
 	,	ISNULL(ow.turnOver, 0) - ISNULL(l.turnOver, 0)
 	,	ISNULL(ow.payOut, 0) - ISNULL(l.payOut, 0)
 	)) AS diff(betCount, turnOver, payOut)
-	WHERE	ISNULL(ow.gameTypeId, l.gameTypeId) <> 1698
+	WHERE	ISNULL(ow.gameTypeId, l.gameTypeId) NOT IN (SELECT gameTypeId FROM dbr.tf_JackpotBettype())
 		AND	diff.betCount + diff.turnOver + diff.payOut <> 0
 
 
@@ -202,7 +204,7 @@ BEGIN;
 	FROM	(
 		SELECT	[operatorId]	= s.operatorId
 			,	[str]			= CONCAT_WS(@NL
-				,	CONCAT(N'`', s.operatorId, N'`  -  `USD`:  ')
+				,	CONCAT(N'`', s.operatorId, N'`  -  `💵`:  ')
 				,	CONCAT(N'  - BC:  `', FORMAT(SUM(s.betCount), '#,##0.##'), N'`  ')
 				,	CONCAT(N'  - TO:  `', FORMAT(SUM(s.turnOver), '#,##0.##'), N'`  ')
 				,	CONCAT(N'  - WL:  `', FORMAT(SUM(s.turnOver - s.payOut), '#,##0.##'), N'`  ')
@@ -215,7 +217,7 @@ BEGIN;
 END;
 GO
 ALTER PROCEDURE	SabaClub.DailySummaryReport_Wrapper
-					@reportDate		DATETIME
+					@reportDate		DATE			= NULL
 				,	@isTest			BIT				= 1
 
 				,	@errorName		NVARCHAR(128)	= NULL
