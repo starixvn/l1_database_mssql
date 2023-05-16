@@ -37,13 +37,13 @@ BEGIN;
 	SELECT	@Query += N'\
 SELECT	er.exDate, er.code, er.rate
 FROM	(
-	SELECT	exDate
+	SELECT	exId
 	FROM	minigame.exchange_rates
-	ORDER BY exDate DESC
+	ORDER BY exId DESC
 	LIMIT 1
 ) AS lastDate
 INNER JOIN	minigame.exchange_rates AS er
-		ON	er.exDate = lastDate.exDate
+		ON	er.exId = lastDate.exId
 ';
 
 	EXECUTE	base.Query @Query, @L, 0, @Env;
