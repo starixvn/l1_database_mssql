@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.BetLogSummaryReport'
-	,	@Version	SYSNAME		= N'2.0.0'
+	,	@Version	SYSNAME		= N'2.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -28,8 +28,9 @@ AS
 		@isTest:			[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	2.0.0
+	Version:	2.0.1
 	Revision:
+		- [2.0.1]	20230614@Billy		Add AppType 5 mapping
 		- [2.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [1.2.2]	20230413@Billy		Reformat due to Skynex changes
 		- [1.2.1]	20230322@Billy		Add metadata for megakeno
@@ -116,10 +117,12 @@ BEGIN;
 		,	(1,  2, N'SM')
 		,	(1,  3, N'SI')
 		,	(1,  4, N'MK')
+		,	(1,  5, N'SA')
 		,	(2,  1, N'VG')
 		,	(2,  2, N'VGM')
 		,	(2,  3, N'VGI')
 		,	(2,  4, N'VMK')
+		,	(2,  5, N'VGA')
 		;
 
 	UPDATE	s
