@@ -101,7 +101,7 @@ BEGIN;
 			,	betCount		INT
 			,	turnOver		DECIMAL(19,4)
 			,	PRIMARY KEY CLUSTERED (sys)
-			)
+			);
 
 	-- List of Ls --
 	INSERT INTO	@Ls
@@ -179,7 +179,7 @@ BEGIN;
 			ORDER BY r.rate DESC
 		) AS cur
 		WHERE	s.currency <> 'UUS'
-		GROUP BY s.sys
+		GROUP BY s.sys;
 
 
 		SELECT	@Message	= CONCAT_WS(@NL
@@ -197,7 +197,7 @@ BEGIN;
 		FROM		@BetLogSummary AS s
 		LEFT JOIN	@Systems AS sys
 				ON	sys.L = @L
-				AND	sys.id = s.sys
+				AND	sys.id = s.sys;
 
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;
