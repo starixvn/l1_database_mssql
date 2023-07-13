@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.L_TicketDetail'
-	,	@Version	SYSNAME		= N'2.0.0'
+	,	@Version	SYSNAME		= N'2.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -23,8 +23,9 @@ AS
 
 		@gameTypeId			[REQUIRED]		- The type id of game that will be selected
 
-	Version:	2.0.0
+	Version:	2.0.1
 	Revision:
+		- [2.0.1]	20230712@Billy		Special rule for blackjack game
 		- [2.0.0]	20230529@Billy		Rename parameters
 		- [1.0.0]	20210923@Billy		Release dbr.SB_TicketDetails
 		- [0.0.1]	20210923@Billy		Initital
@@ -43,15 +44,17 @@ BEGIN;
 			@L			= m.L
 		,	@VendorId	= m.vendorId
 		,	@Name		= m.baseName
-	FROM	dbr.tf_GameTypeMapping(NULL, NULL, NULL, @GameTypeId) AS m;
+	FROM	dbr.tf_GameTypeMapping(NULL, NULL, NULL, @gameTypeId) AS m;
 
 	DECLARE	@Query		NVARCHAR(MAX);
 
+	DECLARE	@roundField	NVARCHAR(128)	= IIF(@gameTypeId IN (1634, 3820), 'id', 'roundId');
+
 	SELECT	@Query = N'';
 	SELECT	@Query = CONCAT(@Query, N'\
-SELECT	' + CAST(@gameTypeId AS NVARCHAR(MAX)) + ' AS gameTypeId
+SELECT	', @gameTypeId, N' AS gameTypeId
 	,	b.currency AS currency
-	,	b.roundId AS roundId
+	,	b.', @roundField, ' AS roundId
 	,	b.playerId AS playerId
 	,	b.stake AS turnOver
 	,	b.payout - b.stake AS winLost

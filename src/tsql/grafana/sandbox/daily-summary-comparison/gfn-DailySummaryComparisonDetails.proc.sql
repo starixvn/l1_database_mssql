@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'gfn.DailySummaryComparisonDetails'
-	,	@Version	SYSNAME		= N'2.0.0'
+	,	@Version	SYSNAME		= N'2.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -22,8 +22,9 @@ AS
 		@Var2				[optional]		- The date of data that will be compared. The time is in UTC timezone.
 				<DEFAULT>	NULL			- Yesterday
 
-	Version:	2.0.0
+	Version:	2.0.1
 	Revision:
+		- [2.0.1]	20230710@Billy		Correct winLost value if ticket is not paid
 		- [2.0.0]	20230529@Billy		Rename parameters
 		- [1.0.1]	20220908@Billy		Fix missed passing date into data query
 		- [1.0.0]	20210923@Billy		Release gfn.DailySummaryComparisonDetails
@@ -81,8 +82,9 @@ BEGIN;
 		;
 
 	SELECT	[TO]			= IIF(diff.turnOver = 0, N'✅', N'❌')
-		,	[WL]			= IIF(diff.winLost = 0, N'✅', N'❌')
+		,	[WL]			= IIF((ow.statusId = 101 OR ow.statusId = 102) AND l.paid = 0, N'⚠️', IIF(diff.winLost = 0, N'✅', N'❌'))
 		,	[🗓]			= IIF(diff.transDate = 0, N'✅', N'❌')
+		,	[#]				= @gameTypeId
 		,	[game]			= @gameName
 		,	[round]			= ISNULL(ow.roundId, l.roundId)
 		,	[player]		= ISNULL(ow.playerId, l.playerId)
@@ -113,7 +115,7 @@ BEGIN;
 	CROSS APPLY	(VALUES (
 		COALESCE(ow.currency, l.currency, N'¤')
 	,	ISNULL(ow.turnOver, 0) - ISNULL(l.turnOver, 0)
-	,	ISNULL(ow.winLost, 0) - ISNULL(l.winlost, 0)
+	,	ISNULL(ow.winLost, 0) - ISNULL(l.winlost * l.paid, 0)
 	,	DATEDIFF(DAY, CAST(ow.transDate AS DATE), CAST(l.endDate AS DATE))
 	)) AS diff(currency, turnOver, winLost, transDate)
 	WHERE	(	(	diff.currency <> N'UUS'
@@ -125,6 +127,8 @@ BEGIN;
 			OR	l.transDate BETWEEN @fromTime AND @toTime
 			)
 	ORDER BY	IIF(diff.currency = 'UUS', 1, 0)
+			,	IIF((ow.statusId = 101 OR ow.statusId = 102) AND l.paid = 0, 1, 0)
+			,	ow.recordCount
 			,	ow.gameTypeId, l.gameTypeId
 			,	ow.roundId, l.roundId
 			,	ow.playerId, l.playerId
