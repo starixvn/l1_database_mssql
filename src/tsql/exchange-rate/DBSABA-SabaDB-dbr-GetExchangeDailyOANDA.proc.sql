@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.GetExchangeDailyOANDA'
-	,	@Version	SYSNAME		= N'2.0.1'
+	,	@Version	SYSNAME		= N'2.1.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -21,8 +21,9 @@ AS
 		@Var2				[optional]		- The id of environment that will be selected
 				<DEFAULT>	NULL			- No data
 
-	Version:	2.0.1
+	Version:	2.1.0
 	Revision:
+		- [2.1.0]	20230713@Billy		Remove call to L3
 		- [2.0.1]	20220715@Billy		Round to 10 decimal number
 		- [2.0.0]	20211214@Billy		Support multiple L system
 		- [1.0.0]	20211018@Billy		Release dbr.GetExchangeDailyOANDA
@@ -61,7 +62,7 @@ BEGIN;
 			,	isDone			BIT
 			);
 	INSERT INTO	@Ls (L)
-	VALUES	(1), (2), (3);
+	VALUES	(1), (2);
 
 	DECLARE	@CheckDate AS TABLE (
 				latest			DATETIME

@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'SysHealth.SummaryCrossCheck'
-	,	@Version	SYSNAME		= N'1.1.0'
+	,	@Version	SYSNAME		= N'1.2.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -28,8 +28,9 @@ AS
 		@Var2:				[optional]		- The system environment id
 				<DEFAULT>	NULL			- Invalid
 
-	Version:	1.1.0
+	Version:	1.2.0
 	Revision:
+		- [1.2.0]	20230713@Billy		Remove call to L3
 		- [1.1.0]	20220624@Billy		Using SQL Server 2019 syntax
 		- [1.0.2]	20220622@Billy		Filter out today to avoid NULL data
 		- [1.0.1]	20220114@Billy		Truncate overflow message
@@ -66,7 +67,7 @@ BEGIN;
 			,	isDone			BIT
 			);
 	INSERT INTO	@Ls (L)
-	VALUES	(1), (2), (3);
+	VALUES	(1), (2);
 
 	DECLARE	@Daily AS TABLE (
 				L				TINYINT

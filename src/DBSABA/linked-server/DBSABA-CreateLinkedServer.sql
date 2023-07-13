@@ -15,16 +15,12 @@ DECLARE	@Servers AS TABLE (
 INSERT INTO	@Servers (name, pwd)
 VALUES	(N'L1_SabaBI'   , @PROReadOnlyPwd)
 	,	(N'L2_SabaBI'   , @PROReadOnlyPwd)
-	,	(N'L3_SabaBI'   , @PROReadOnlyPwd)
 	,	(N'L1_SabaArcBI', @PROReadOnlyPwd)
 	,	(N'L2_SabaArcBI', @PROReadOnlyPwd)
-	,	(N'L3_SabaArcBI', @PROReadOnlyPwd)
 	,	(N'L1_SabaUATBI', @UATReadOnlyPwd)
 	,	(N'L2_SabaUATBI', @UATReadOnlyPwd)
-	,	(N'L3_SabaUATBI', @UATReadOnlyPwd)
 	,	(N'L1_SabaSITBI', @SITReadOnlyPwd)
 	,	(N'L2_SabaSITBI', @SITReadOnlyPwd)
-	,	(N'L3_SabaSITBI', @SITReadOnlyPwd)
 	;
 
 DECLARE	@Svr	SYSNAME

@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'base.ExecuteSabaQuery'
-	,	@Version	SYSNAME		= N'1.3.4'
+	,	@Version	SYSNAME		= N'1.4.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -34,8 +34,9 @@ AS
 							2				- UAT
 							3				- SIT
 
-	Version:	1.3.4
+	Version:	1.4.0
 	Revision:
+		- [1.4.0]	20230713@Billy		Remove call to L3
 		- [1.3.4]	20220113@Billy		Move common error handling to ErrorHandling label
 										Retry 3 times before RAISERROR
 		- [1.3.3]	20220106@Billy		If there are 2 errors, raise error instead of printing only
@@ -132,24 +133,6 @@ BEGIN;
 		GOTO ErrorHandling;
 	END CATCH;
 
-	IF	@_L    = 3
-	AND	@_Type = 0 -- Active
-	AND	@_Env  = 1 -- PRO
-	BEGIN TRY;
-		EXECUTE	(@Query) AT L3_SABABI;
-	END TRY BEGIN CATCH
-		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		BEGIN TRY;
-			EXECUTE	(@Query) AT L3aBI;
-		END TRY BEGIN CATCH
-			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		END CATCH;
-
-		GOTO ErrorHandling;
-	END CATCH;
-
 	IF	@_L    = 1
 	AND	@_Type = 1 -- Archive
 	AND	@_Env  = 1 -- PRO
@@ -178,24 +161,6 @@ BEGIN;
 		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
 		BEGIN TRY;
 			EXECUTE	(@Query) AT L2BI;
-		END TRY BEGIN CATCH
-			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		END CATCH;
-
-		GOTO ErrorHandling;
-	END CATCH;
-
-	IF	@_L    = 3
-	AND	@_Type = 1 -- Archive
-	AND	@_Env  = 1 -- PRO
-	BEGIN TRY;
-		EXECUTE	(@Query) AT L3_SABAARCBI;
-	END TRY BEGIN CATCH
-		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		BEGIN TRY;
-			EXECUTE	(@Query) AT L3aBI;
 		END TRY BEGIN CATCH
 			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
 			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
@@ -240,24 +205,6 @@ BEGIN;
 		GOTO ErrorHandling;
 	END CATCH;
 
-	IF	@_L    = 3
-	AND	@_Type IN (0, 1) -- Mixxed
-	AND	@_Env  = 2 -- UAT
-	BEGIN TRY;
-		EXECUTE	(@Query) AT L3_SABAUATBI;
-	END TRY BEGIN CATCH
-		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		BEGIN TRY;
-			EXECUTE	(@Query) AT L3bBI;
-		END TRY BEGIN CATCH
-			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		END CATCH;
-
-		GOTO ErrorHandling;
-	END CATCH;
-
 	IF	@_L    = 1
 	AND	@_Type IN (0, 1) -- Mixxed
 	AND	@_Env  = 3 -- SIT
@@ -287,25 +234,6 @@ BEGIN;
 
 		GOTO ErrorHandling;
 	END CATCH;
-
-	IF	@_L    = 3
-	AND	@_Type IN (0, 1) -- Mixxed
-	AND	@_Env  = 3 -- SIT
-	BEGIN TRY;
-		EXECUTE	(@Query) AT L3_SABASITBI;
-	END TRY BEGIN CATCH
-		INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-		VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		BEGIN TRY;
-			EXECUTE	(@Query) AT L3cBI;
-		END TRY BEGIN CATCH
-			INSERT INTO	@Errors (ErrNumber, ErrSeverity, ErrState, ErrProcedure, ErrLine, ErrMessage)
-			VALUES	(ERROR_NUMBER(), ERROR_SEVERITY(), ERROR_STATE(), ERROR_PROCEDURE(), ERROR_LINE(), ERROR_MESSAGE());
-		END CATCH;
-
-		GOTO ErrorHandling;
-	END CATCH;
-
 
 	RETURN;
 
