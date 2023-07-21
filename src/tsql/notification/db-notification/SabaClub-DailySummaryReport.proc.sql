@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'SabaClub.DailySummaryReport'
-	,	@Version	SYSNAME		= N'3.0.0'
+	,	@Version	SYSNAME		= N'3.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -29,8 +29,9 @@ AS
 				<DEFAULT>	NULL			- Treat as if testing
 
 
-	Version:	3.0.0
+	Version:	3.0.1
 	Revision:
+		- [3.0.1]	20230721@Billy		Format mismatch to show correct difference values
 		- [3.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [2.2.1]	20230413@Billy		Reformat due to Skynex changes
 		- [2.2.0]	20220624@Billy		Using SQL Server 2019 syntax
@@ -181,9 +182,9 @@ BEGIN;
 				,	STRING_AGG(CONCAT(
 						N'  `', m.operatorId, N'`: '
 					,	CONCAT_WS(N'|',
-								FORMAT(m.betCount, '#,##0.##')
-							,	FORMAT(m.turnOver, '#,##0.##')
-							,	FORMAT(m.payOut, '#,##0.##')
+								FORMAT(m.betCount, '#,##0')
+							,	FORMAT(m.turnOver, '#,##0.####')
+							,	FORMAT(m.payOut, '#,##0.####')
 						)
 					), @NL)
 				)
