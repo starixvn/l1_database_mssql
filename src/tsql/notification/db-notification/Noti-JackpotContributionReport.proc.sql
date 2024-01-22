@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'Noti.JackpotContributionReport'
-	,	@Version	SYSNAME		= N'2.0.0'
+	,	@Version	SYSNAME		= N'2.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -28,8 +28,9 @@ AS
 		@isTest:			[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	2.0.0
+	Version:	2.0.1
 	Revision:
+		- [2.0.1]	20240115@Billy		Temporary hard code "ONEworksVGCash" operator
 		- [2.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [1.3.2]	20230413@Billy		Reformat due to Skynex changes
 		- [1.3.1]	20230328@Billy		Add current jackpot value
@@ -160,6 +161,7 @@ FROM		summary.daily_summaries AS ds
 INNER JOIN	summary.game_summary_config AS cfg
 		ON	ds.gameId = cfg.gameId
 WHERE	cfg.groupName = "Slots"
+	AND	ds.operatorId = "ONEworksVGCash"
 	AND	ds.time >= "', FORMAT(@ReportDate, 'yyyy-MM-dd'), N'"
 	AND	ds.time < "' , FORMAT(DATEADD(DAY, 1, @ReportDate), 'yyyy-MM-dd'), N'"
 GROUP BY ds.operatorId, ds.time, ds.currency
@@ -283,7 +285,7 @@ GROUP BY jp.gameId, jp.pool
 		FROM	(
 			SELECT	[baseStr]		= FORMAT(_cjp.pool, N'     #0.#')
 				,	[baseMaxLen]	= MAX(LEN(FORMAT(_cjp.pool, N'#0.#'))) OVER()
-				,	[amountStr]		= FORMAT(SUM(_cjp.amount), N'#,##0.####')
+				,	[amountStr]		= FORMAT(SUM(_cjp.amount), N'#,##0.##')
 			FROM	@CurrentJackpots AS _cjp
 			GROUP BY _cjp.pool
 		) AS cjp
