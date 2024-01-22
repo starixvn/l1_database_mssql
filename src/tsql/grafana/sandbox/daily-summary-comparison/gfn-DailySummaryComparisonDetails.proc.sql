@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'gfn.DailySummaryComparisonDetails'
-	,	@Version	SYSNAME		= N'2.0.1'
+	,	@Version	SYSNAME		= N'2.0.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -22,8 +22,9 @@ AS
 		@Var2				[optional]		- The date of data that will be compared. The time is in UTC timezone.
 				<DEFAULT>	NULL			- Yesterday
 
-	Version:	2.0.1
+	Version:	2.0.2
 	Revision:
+		- [2.0.2]	20240122@Billy		Support super users
 		- [2.0.1]	20230710@Billy		Correct winLost value if ticket is not paid
 		- [2.0.0]	20230529@Billy		Rename parameters
 		- [1.0.1]	20220908@Billy		Fix missed passing date into data query
@@ -42,6 +43,7 @@ BEGIN;
 	SELECT	@reportDate		= CAST(ISNULL(@reportDate, DATEADD(DAY, -1, GETUTCDATE())) AS DATE);
 
 	IF	NOT (DATEDIFF(DAY, @reportDate, GETUTCDATE()) BETWEEN 1 AND 7)
+	AND	NOT EXISTS ( SELECT 1 FROM dbo.superusers WHERE systemId = SUSER_SID() )
 	BEGIN;
 		SELECT	@errorMessage	= N'@reportDate is out of range';
 		EXECUTE	logger.Error N'Assert', @errorMessage;
