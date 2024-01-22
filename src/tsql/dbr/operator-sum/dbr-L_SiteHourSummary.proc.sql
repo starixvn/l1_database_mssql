@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.L_SiteHourSummary'
-	,	@Version	SYSNAME		= N'1.0.0'
+	,	@Version	SYSNAME		= N'1.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -22,6 +22,7 @@ AS
 
 	Version:	1.0.0
 	Revision:
+		- [1.0.0]	20231214@Billy		Exclude test currency UUS
 		- [1.0.0]	20230512@Billy		Release dbr.L_SiteHourSummary
 		- [0.0.1]	20230512@Billy		Initital
 */
@@ -51,6 +52,7 @@ LEFT JOIN	minigame.currencies AS c
 		AND	ds.currency = c.name
 WHERE	ds.time >= "' + FORMAT(@fromHour, 'yyyy-MM-ddTHH:mm:ssZ') + N'"
 	AND	ds.time < "' + FORMAT(@toHour, 'yyyy-MM-ddTHH:mm:ssZ') + N'"
+	AND c.isTest = 0
 GROUP BY ds.operatorId, ds.time, ds.gameId, IFNULL(c.code, ds.currency)
 ';
 
