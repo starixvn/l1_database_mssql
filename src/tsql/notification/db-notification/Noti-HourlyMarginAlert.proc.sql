@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
-	,	@Version	SYSNAME		= N'2.0.0'
+	,	@Version	SYSNAME		= N'2.1.0'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -35,8 +35,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	2.0.0
+	Version:	2.1.0
 	Revision:
+		- [2.1.0]	20240617@Billy		Add xD product
 		- [2.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [1.2.2]	20230413@Billy		Reformat due to Skynex changes
 		- [1.2.1]	20220727@Billy		Add threshold to limit result
@@ -101,6 +102,7 @@ BEGIN;
 			(L, icon , isDone)
 	VALUES	(1, N'1️⃣',      0)
 		,	(2, N'2️⃣',      0)
+		,	(4, N'4️⃣',      0)
 		;
 
 	-- List of hours - From beginning of @reportDate --

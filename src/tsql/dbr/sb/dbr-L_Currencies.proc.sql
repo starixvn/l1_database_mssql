@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.L_Currencies'
-	,	@Version	SYSNAME		= N'1.0.0'
+	,	@Version	SYSNAME		= N'1.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -17,11 +17,11 @@ AS
 
 	Parameters:
 		@L				[REQUIRED]		- The id of Luminet system that will be selected
-
 		@Env			[REQUIRED]		- The id of environment that will be selected
 
-	Version:	1.0.0
+	Version:	1.0.1
 	Revision:
+		- [1.0.1]	20240614@Billy		Using latest term of operatorId
 		- [1.0.0]	20230515@Billy		Release dbr.L_Currencies
 		- [0.0.1]	20230515@Billy		Initital
 */
@@ -35,7 +35,7 @@ BEGIN;
 
 	SELECT	@Query = N'';
 	SELECT	@Query += N'\
-SELECT	partnerId AS operatorId
+SELECT	operatorId AS operatorId
 	,	name AS name
 	,	code AS code
 	,	multiplier AS multiplier

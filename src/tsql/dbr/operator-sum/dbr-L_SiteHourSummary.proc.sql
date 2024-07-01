@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.L_SiteHourSummary'
-	,	@Version	SYSNAME		= N'1.0.1'
+	,	@Version	SYSNAME		= N'1.0.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -20,9 +20,10 @@ AS
 		@L					[optional]		- The id of Luminet system that will be selected
 				<DEFAULT>	NULL			- No data
 
-	Version:	1.0.0
+	Version:	1.0.2
 	Revision:
-		- [1.0.0]	20231214@Billy		Exclude test currency UUS
+		- [1.0.2]	20240617@Billy		Change partnerId to operatorId
+		- [1.0.1]	20231214@Billy		Exclude test currency UUS
 		- [1.0.0]	20230512@Billy		Release dbr.L_SiteHourSummary
 		- [0.0.1]	20230512@Billy		Initital
 */
@@ -48,7 +49,7 @@ FROM		summary.hourly_summaries AS ds
 INNER JOIN	summary.game_summary_config AS cfg
 		ON	ds.gameId = cfg.gameId
 LEFT JOIN	minigame.currencies AS c
-		ON	ds.operatorId = c.partnerId
+		ON	ds.operatorId = c.operatorId
 		AND	ds.currency = c.name
 WHERE	ds.time >= "' + FORMAT(@fromHour, 'yyyy-MM-ddTHH:mm:ssZ') + N'"
 	AND	ds.time < "' + FORMAT(@toHour, 'yyyy-MM-ddTHH:mm:ssZ') + N'"
@@ -86,4 +87,5 @@ DECLARE	@from	DATETIME	= DATEADD(MINUTE, DATEDIFF(MINUTE, 0, GETUTCDATE()) - 120
 SELECT	[@from] = @from, [@to] = @to;
 EXECUTE	dbr.L_SiteHourSummary 1, @from, @to;
 EXECUTE	dbr.L_SiteHourSummary 2, @from, @to;
+EXECUTE	dbr.L_SiteHourSummary 4, @from, @to;
 GO

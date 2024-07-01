@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'dbr.tf_GameTypeMapping'
-	,	@Version	SYSNAME		= N'2.1.0'
+	,	@Version	SYSNAME		= N'2.2.0'
 	;
 EXECUTE	dbo.sp_MSR_InitInlineTableFunction @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -29,8 +29,9 @@ AS
 		@gameTypeId			[REQUIRED]		- The id of game type that will be selected
 							NULL			- All games
 
-	Version:	2.1.0
+	Version:	2.2.0
 	Revision:
+		- [2.2.0]	20240617@Billy		Add xD product
 		- [2.1.0]	20230515@Billy		Remove VG3 system
 		- [2.0.0]	20220217@Billy		Using configs from SB
 		- [1.0.0]	20210416@Billy		Release dbr.tf_GameTypeMapping
@@ -48,6 +49,12 @@ FROM	summary.game_summary_config
 		SELECT	L, vendorId, gameId, gameTypeId, baseName, gameName
 		FROM	OPENQUERY(L2_SABABI, N'\
 SELECT	2 AS L, 66 AS vendorId, gameId, gameTypeId, coll AS baseName, nameEN as gameName
+FROM	summary.game_summary_config
+')
+		UNION
+		SELECT	L, vendorId, gameId, gameTypeId, baseName, gameName
+		FROM	OPENQUERY([PRO-L4-BI], N'\
+SELECT	4 AS L, 86 AS vendorId, gameId, gameTypeId, coll AS baseName, nameEN as gameName
 FROM	summary.game_summary_config
 ')
 	) AS tbl (L, vendorId, gameId, gameTypeId, baseName, gameName)

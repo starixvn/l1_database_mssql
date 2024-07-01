@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Object		SYSNAME		= N'dbr.tf_OW_OperatorMapping'
-	,	@Version	SYSNAME		= N'1.0.0'
+	,	@Version	SYSNAME		= N'1.0.1'
 	;
 EXECUTE	dbo.sp_MSR_InitInlineTableFunction @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
@@ -20,8 +20,9 @@ AS
 	Parameters:
 		@input:				[REQUIRED]		- Input value to be formatted as byte.
 
-	Version:	1.0.0
+	Version:	1.0.1
 	Revision:
+		- [1.0.1]	20240614@Billy		Add xD system
 		- [1.0.0]	20230512@Billy		Release dbr.tf_OW_OperatorMapping
 		- [0.0.1]	20230512@Billy		Initial
 */
@@ -33,6 +34,9 @@ RETURN (
 			,	(66, NULL, N'ONEworks_VG')
 			,	(66, N'', N'ONEworksVGCash')
 			,	(66, N'SEAL888', N'ONEworksSeal888')
+			,	(86, NULL, N'ONEworksCredit')
+			,	(86, N'', N'ONEworksCash')
+			,	(86, N'SEAL888', N'ONEworksSeal888')
 	) AS meta(vendorId, site, operatorId)
 	WHERE	@vendorId = meta.vendorId
 		AND	(
@@ -51,5 +55,9 @@ FROM	(
 		,	(66, 'Credit')
 		,	(66, 'Deposit')
 		,	(66, 'SEAL888')
+		,	(86, NULL)
+		,	(86, 'Credit')
+		,	(86, 'Deposit')
+		,	(86, 'SEAL888')
 ) AS input(vendorId, site)
 OUTER APPLY	dbr.tf_OW_OperatorMapping(input.vendorId, input.site);

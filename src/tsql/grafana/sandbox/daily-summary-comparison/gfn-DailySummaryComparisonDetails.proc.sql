@@ -125,9 +125,9 @@ BEGIN;
 				)
 			OR	ow.recordCount > 1
 			)
-		AND	(	ow.transDate BETWEEN @fromTime AND @toTime
-			OR	l.transDate BETWEEN @fromTime AND @toTime
-			)
+		-- AND	(	ow.transDate BETWEEN @fromTime AND @toTime
+		-- 	OR	l.transDate BETWEEN @fromTime AND @toTime
+		-- 	)
 	ORDER BY	IIF(diff.currency = 'UUS', 1, 0)
 			,	IIF((ow.statusId = 101 OR ow.statusId = 102) AND l.paid = 0, 1, 0)
 			,	ow.recordCount

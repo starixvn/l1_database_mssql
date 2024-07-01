@@ -1,6 +1,6 @@
 USE SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'dbr.L_TicketDetail'
-	,	@Version	SYSNAME		= N'2.0.1'
+	,	@Version	SYSNAME		= N'2.0.2'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -23,8 +23,9 @@ AS
 
 		@gameTypeId			[REQUIRED]		- The type id of game that will be selected
 
-	Version:	2.0.1
+	Version:	2.0.2
 	Revision:
+		- [2.0.2]	20240304@Billy		Update playerId filter
 		- [2.0.1]	20230712@Billy		Special rule for blackjack game
 		- [2.0.0]	20230529@Billy		Rename parameters
 		- [1.0.0]	20210923@Billy		Release dbr.SB_TicketDetails
@@ -48,7 +49,7 @@ BEGIN;
 
 	DECLARE	@Query		NVARCHAR(MAX);
 
-	DECLARE	@roundField	NVARCHAR(128)	= IIF(@gameTypeId IN (1634, 3820), 'id', 'roundId');
+	DECLARE	@roundField	NVARCHAR(128)	= IIF(@gameTypeId IN (1634, 3820, 1684, 3876), 'id', IIF(@gameTypeId IN (10801, 10802, 10803, 10804, 10806), 'drawId','roundId'));
 
 	SELECT	@Query = N'';
 	SELECT	@Query = CONCAT(@Query, N'\
@@ -67,7 +68,7 @@ INNER JOIN	minigame.', @Name, N'_bets AS b
 		ON	g.id = b.roundId
 WHERE	g.time >= "', FORMAT(@fromTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
 	AND	g.time < "', FORMAT(@toTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
-	AND	b.playerId > 0
+	AND	b.playerId IS NOT NULL
 ')
 		;
 

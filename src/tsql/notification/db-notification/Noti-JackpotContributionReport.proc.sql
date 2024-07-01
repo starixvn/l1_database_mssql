@@ -28,8 +28,9 @@ AS
 		@isTest:			[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	2.0.1
+	Version:	2.0.2
 	Revision:
+		- [2.0.2]	20240424@Billy		Check for multiple games
 		- [2.0.1]	20240115@Billy		Temporary hard code "ONEworksVGCash" operator
 		- [2.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [1.3.2]	20230413@Billy		Reformat due to Skynex changes
@@ -154,8 +155,8 @@ SELECT	ds.operatorId AS operatorId
 	,	0 AS gameId
 	,	"Jackpot Contribution" AS gameName
 	,	IFNULL(ds.currency, "null") AS currency
-	,	ds.tickets AS betCount
-	,	ds.stake * IFNULL(cfg.jpCont, 0) AS turnOver
+	,	SUM(ds.tickets) AS betCount
+	,	SUM(ds.stake * IFNULL(cfg.jpCont, 0)) AS turnOver
 	,	0 AS payOut
 FROM		summary.daily_summaries AS ds
 INNER JOIN	summary.game_summary_config AS cfg
@@ -187,6 +188,12 @@ GROUP BY jp.gameId, jp.pool
 	INSERT INTO	@CurrentJackpots (gameId, gameName, pool, amount)
 	EXECUTE	base.Query @Query, @L, 0, 1;
 
+	IF	@isTest = 1
+	BEGIN;
+		SELECT * FROM @OW_Jackpot;
+		SELECT * FROM @L_Jackpot;
+		SELECT * FROM @CurrentJackpots;
+	END;
 
 	INSERT INTO	@OW_JackpotSummary (site, time, gameTypeId, gameName, currency, betcount, turnOver, payOut)
 	SELECT	[site]			= m.operatorId
@@ -230,6 +237,11 @@ GROUP BY jp.gameId, jp.pool
 	WHERE	l.currency <> 'UUS'
 	GROUP BY l.operatorId, l.time, l.gameTypeId, l.gameId, l.gameName, c.code
 
+	IF	@isTest = 1
+	BEGIN;
+		SELECT * FROM @OW_JackpotSummary;
+		SELECT * FROM @L_JackpotSummary;
+	END;
 
 	INSERT INTO	@Mismatches (operatorId, time, gameTypeId, gameId, gameName, currency, betCount, turnOver, payOut)
 	SELECT	[operatorId]	= ISNULL(ow.site, l.operatorId)
@@ -260,6 +272,11 @@ GROUP BY jp.gameId, jp.pool
 				,	STRING_AGG(CONCAT(N'`', m.operatorId, N'`  -  `💸`:  `', FORMAT(m.turnOver, '#,##0.##'), N'`'), @NL)
 				)
 		FROM	@Mismatches AS m;
+
+		IF	@isTest = 1
+		BEGIN;
+			SELECT * FROM @Mismatches;
+		END;
 
 		EXECUTE	Noti.SendNotification @Message, @isTest;
 	END;
