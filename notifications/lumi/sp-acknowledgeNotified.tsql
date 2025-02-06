@@ -1,0 +1,20 @@
+USE NotificationDB;
+GO
+ALTER PROCEDURE dbo.acknowledgeNotified
+	@NotiResults	dbo.NotiResults		READONLY
+AS
+/** Version: 2.0.0 */
+BEGIN;
+	SET NOCOUNT ON;
+
+	UPDATE	n WITH (ROWLOCK, UPDLOCK)
+	SET		n.SendStatus = 1
+		,	n.MessageId = r.MessageId
+	FROM		dbo.TelegramNotifications AS n
+	INNER JOIN	@NotiResults AS r
+			ON	n.NotiId = r.NotiId
+	WHERE	n.SendStatus = 2;
+END;
+GO
+GRANT EXECUTE ON dbo.acknowledgeNotified TO app_notifier;
+GO

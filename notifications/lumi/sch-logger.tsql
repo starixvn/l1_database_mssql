@@ -1,0 +1,6 @@
+USE NotificationDB;
+GO
+CREATE SCHEMA logger AUTHORIZATION dbo;
+GO
+GRANT EXECUTE ON SCHEMA::logger TO app_sender;
+GO

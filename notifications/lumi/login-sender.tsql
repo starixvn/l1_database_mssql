@@ -1,0 +1,14 @@
+USE master;
+GO
+CREATE LOGIN sender
+	WITH PASSWORD		= N'Sender'
+,	DEFAULT_DATABASE	= NotificationDB
+,	CHECK_EXPIRATION	= OFF
+,	CHECK_POLICY		= OFF
+;
+GO
+USE NotificationDB
+GO
+CREATE USER sender FOR LOGIN sender;
+ALTER ROLE app_sender ADD MEMBER sender;
+GO

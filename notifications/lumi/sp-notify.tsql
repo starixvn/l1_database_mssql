@@ -1,0 +1,21 @@
+USE NotificationDB;
+GO
+ALTER PROCEDURE dbo.notify
+	@minute	INT	= 5
+AS
+/** Version: 1.1.0 */
+BEGIN;
+	SET NOCOUNT ON;
+
+	UPDATE	n WITH (ROWLOCK, UPDLOCK)
+	SET		n.SendStatus = 2
+		,	n.PickupTime = GETUTCDATE()
+	OUTPUT	Inserted.NotiId, Inserted.NotiTime, Inserted.ConversationId, Inserted.TopicId, Inserted.ContentType, Inserted.Content
+	FROM	dbo.TelegramNotifications AS n
+	WHERE	n.NotiTime >= DATEADD(MINUTE, - @minute * (n.TryCount + 1), GETUTCDATE())
+		AND	n.SendStatus = 0
+		AND	n.TryCount < 5
+END;
+GO
+GRANT EXECUTE ON dbo.notify TO app_notifier;
+GO

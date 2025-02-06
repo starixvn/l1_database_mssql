@@ -1,0 +1,80 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'operator.GetTickets'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	operator.GetTickets
+	@Vendor		TINYINT
+,	@FromTime	DATETIME
+,	@ToTime		DATETIME
+WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	DECLARE	@Query	NVARCHAR(MAX)	= N''
+		,	@Param	NVARCHAR(MAX)	= N''
+		;
+
+	SELECT	@Query	= N'\
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET NOCOUNT ON;
+
+SELECT	[gameTypeId]	= b.gameId
+	,	[gameName]		= t.typenamee
+	,	[currency]		= b.CurrencyName
+	,	[roundId]		= b.GameId3rd
+	,	[playerId]		= b.custId
+	,	[turnOver]		= b.stake
+	,	[winLost]		= b.winlost - b.stake
+	,	[transDate]		= b.transDate3rd
+	,	[status]		= b.status
+	,	[statusId]		= b.statusId
+	,	[recordCount]	= COUNT(1) OVER(PARTITION BY b.gameId, b.GameId3rd, b.custId)
+	,	[freeBet]		= IIF(b.productID = 150, 1, 0)
+FROM		dbo.bettransRnG AS b
+LEFT JOIN	dbo.bettype AS t
+		ON	b.gameId = t.typeid
+WHERE	b.vendorId = @Vendor
+	AND	b.Transdate3rd >= @FromTime
+	AND	b.Transdate3rd < @ToTime
+OPTION (RECOMPILE);
+'
+		,	@Param	= N'@Vendor TINYINT, @FromTime DATETIME, @ToTime DATETIME'
+		;
+
+	EXECUTE	DB061KBT.bodb02.sys.sp_executesql @Query, @Param, @Vendor, @FromTime, @ToTime;
+END;
+GO
+BEGIN TRY;
+	IF	TYPE_ID('operator.Tickets') IS NOT NULL
+		DROP TYPE operator.Tickets;
+
+	CREATE TYPE	operator.Tickets AS TABLE (
+		gameTypeId		INT
+	,	gameName		NVARCHAR(128)
+	,	currency		VARCHAR(16)
+	,	roundId			INT
+	,	playerId		NVARCHAR(128)
+	,	turnOver		DECIMAL(19,4)
+	,	winLost			DECIMAL(19,4)
+	,	transDate		DATETIME
+	,	status			VARCHAR(16)
+	,	statusId		SMALLINT
+	,	recordCount		INT
+	,	freeBet			BIT
+	,	PRIMARY KEY NONCLUSTERED (gameTypeId, roundId, playerId, transDate)
+	) WITH (MEMORY_OPTIMIZED = ON);
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
+GO

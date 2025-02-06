@@ -1,0 +1,14 @@
+USE master;
+GO
+CREATE LOGIN notifier
+	WITH PASSWORD		= N'Notifier'
+,	DEFAULT_DATABASE	= NotificationDB
+,	CHECK_EXPIRATION	= OFF
+,	CHECK_POLICY		= OFF
+;
+GO
+USE NotificationDB
+GO
+CREATE USER notifier FOR LOGIN notifier;
+ALTER ROLE app_notifier ADD MEMBER notifier;
+GO

@@ -1,0 +1,33 @@
+USE NotificationDB;
+GO
+ALTER PROCEDURE dbo.sendNotification
+	@To		VARCHAR(128)
+,	@Msg	NVARCHAR(MAX)
+,	@Type	VARCHAR(16)		= N'Message'
+AS
+/** Version: 1.1.0 */
+BEGIN;
+	SET NOCOUNT ON;
+
+	DECLARE	@ConversationId	VARCHAR(256)	= NULL
+		,	@TopicId		INT				= NULL
+		;
+
+	SELECT	@ConversationId = ConversationId
+		,	@TopicId = TopicId
+	FROM	dbo.TelegramTargets WITH (NOLOCK)
+	WHERE	CodeName = @To;
+
+	IF	@@ROWCOUNT = 0 OR @ConversationId IS NULL
+	BEGIN;
+		RAISERROR(N'This recipient is not authorized to receive this message.', 16, 1) WITH NOWAIT;
+		RETURN -1;
+	END;
+
+	INSERT INTO	dbo.TelegramNotifications
+			( ConversationId,  TopicId, ContentType, Content)
+	VALUES	(@ConversationId, @TopicId, @Type      , @Msg   );
+END;
+GO
+GRANT EXECUTE ON dbo.sendNotification TO app_sender AS dbo;
+GO

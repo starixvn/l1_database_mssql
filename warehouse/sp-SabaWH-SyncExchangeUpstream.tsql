@@ -1,0 +1,39 @@
+USE	SabaWH;
+GO
+ALTER PROCEDURE sync.SyncExchangeUpstream
+	@Title	NVARCHAR(128)	= N'Sync Exchange'
+AS
+BEGIN TRY;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	DECLARE @exchange t.Exchange;
+
+	INSERT INTO @exchange (exchangeid, currency, Code, Description, MultipliedBy, ExVirtualRate, IsActive)
+	EXECUTE DB061.bodb02.sys.sp_executesql N'\
+SELECT	exchangeid, currency, Code, Description, MultipliedBy, ExVirtualRate, IsActive
+FROM	dbo.exchange AS e WITH (NOLOCK)';
+
+	MERGE INTO dbo.Exchange AS e
+	USING @exchange AS src
+	ON e.exchangeid = src.exchangeid
+	WHEN MATCHED THEN UPDATE SET
+		exchangeid = src.exchangeid
+	,	currency = src.currency
+	,	Code = src.Code
+	,	Description = src.Description
+	,	MultipliedBy = src.MultipliedBy
+	,	ExVirtualRate = src.ExVirtualRate
+	,	IsActive = src.IsActive
+	WHEN NOT MATCHED THEN
+		INSERT (exchangeid, currency, Code, Description, MultipliedBy, ExVirtualRate, IsActive)
+		VALUES (exchangeid, currency, Code, Description, MultipliedBy, ExVirtualRate, IsActive)
+	;
+
+	RAISERROR(N'SUCCESS', 0, 0) WITH NOWAIT;
+END TRY
+BEGIN CATCH
+	EXECUTE logger.handleThrow @Title, 0;
+	RAISERROR(N'FAILURE', 0, 0) WITH NOWAIT;
+END CATCH;
+GO

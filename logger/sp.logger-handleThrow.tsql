@@ -1,0 +1,47 @@
+USE	SabaDB;
+DECLARE	@Procedure	SYSNAME		= N'logger.handleThrow'
+	,	@Version	SYSNAME		= N'1.0.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+ALTER PROCEDURE logger.handleThrow
+	@Title	SYSNAME
+,	@isTest	BIT		= 1
+AS
+BEGIN TRY;
+	DECLARE	@ErrNumber		INT				= ERROR_NUMBER()
+		,	@ErrSeverity	INT				= ERROR_SEVERITY()
+		,	@ErrState		INT				= ERROR_STATE()
+		,	@ErrProcedure	NVARCHAR(128)	= ERROR_PROCEDURE()
+		,	@ErrLine		INT				= ERROR_LINE()
+		,	@ErrMessage		NVARCHAR(MAX)	= ERROR_MESSAGE()
+		,	@Server			NVARCHAR(128)	= PUBLISHINGSERVERNAME()
+		,	@Database		NVARCHAR(128)	= DB_NAME()
+		;
+	DECLARE	@Message		NVARCHAR(MAX)
+		,	@NL				NVARCHAR(10)	= N'
+'
+		;
+
+	SELECT	@Message	= CONCAT_WS(@NL
+		,	CONCAT(N'`', CONVERT(NVARCHAR(128), SYSUTCDATETIME(), 127), N'`')
+		,	CONCAT(
+				N'\[', ISNULL(@Title, N'SQL Server Error'), N'\]  `'
+			,	CONCAT_WS(N'.', ISNULL(@Server, PUBLISHINGSERVERNAME()), ISNULL(@Database, DB_NAME()))
+			, 	N'`'
+		)
+		,	N'```'
+		,	CONCAT(
+				N'Msg ', @ErrNumber, N', '
+			,	N'Level ', @ErrSeverity, N', '
+			,	N'State ', @ErrState, N', '
+			,	ISNULL(N'Procedure ' + @ErrProcedure + N', ', N'Adhoc script, ')
+			,	N'Line ', @ErrLine
+		)
+		,	@ErrMessage
+		,	N'```'
+	);
+	EXECUTE	logger.sendNotification @Message, @isTest;
+END TRY BEGIN CATCH END CATCH;
+GO

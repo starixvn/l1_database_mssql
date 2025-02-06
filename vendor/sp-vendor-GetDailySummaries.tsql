@@ -1,0 +1,65 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'vendor.GetDailySummaries'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	vendor.GetDailySummaries
+	@Vendor		TINYINT
+,	@ReportDate	DATE
+WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+
+	DECLARE	@Query	NVARCHAR(MAX)	= N''
+		,	@ToTime	DATE			= DATEADD(DAY, 1, @ReportDate)
+		;
+
+	SELECT	@Query = CONCAT(@Query, N'\
+SELECT	t.gameId
+	,	g.gameTypeId
+	,	t.subRoundId
+	,	t.playerId
+	,	t.currency
+	,	t.time
+	,	t.roundTime
+	,	t.stake
+	,	t.winloss
+FROM		minigame.daily_summaries AS t
+INNER JOIN	summary.game_summary_config AS g
+		ON	t.gameId = g.gameId
+WHERE	t.roundTime >= "', FORMAT(@ReportDate, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
+	AND	t.roundTime < "', FORMAT(@ToTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
+');
+
+	EXECUTE vendor.Query @Query = @Query, @Vendor = @Vendor;
+END;
+GO
+BEGIN TRY;
+	IF	TYPE_ID('vendor.DailySummaries') IS NOT NULL
+		DROP TYPE vendor.DailySummaries;
+
+	CREATE TYPE	vendor.DailySummaries AS TABLE (
+		gameId			INT
+	,	gameTypeId		INT
+	,	roundId			INT
+	,	playerId		NVARCHAR(128)
+	,	currency		VARCHAR(16)
+	,	transDate		DATETIME
+	,	roundTime		DATETIME
+	,	turnOver		DECIMAL(19,4)
+	,	winLost			DECIMAL(19,4)
+	,	PRIMARY KEY NONCLUSTERED (gameId, roundId, playerId)
+	) WITH (MEMORY_OPTIMIZED = ON);
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
+GO

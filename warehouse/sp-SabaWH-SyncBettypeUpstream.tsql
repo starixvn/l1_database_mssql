@@ -1,0 +1,39 @@
+USE SabaWH;
+GO
+ALTER PROCEDURE sync.SyncBettypeUpstream
+	@Title	NVARCHAR(128)	= N'Sync Metadata'
+AS
+BEGIN TRY;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	DECLARE @bettype t.BetType;
+
+	INSERT INTO @bettype (typeid, typenamee, typenameVN)
+	EXECUTE DB061.bodb02.sys.sp_executesql N'\
+SELECT	typeid, typenamee, typenameVN
+FROM	dbo.bettype WITH (NOLOCK)
+WHERE	typeid BETWEEN 1610 AND 1699
+	OR	typeid BETWEEN 3800 AND 3899
+	OR	typeid BETWEEN 10800 AND 10899
+	OR	typeid BETWEEN 13200 AND 13499
+	OR	typeid BETWEEN 13500 AND 13799';
+
+	MERGE INTO dbo.bettype AS b
+	USING @bettype AS src
+	ON b.typeid = src.typeid
+	WHEN MATCHED THEN UPDATE SET
+		typenamee = src.typenamee
+	,	typenameVN = src.typenameVN
+	WHEN NOT MATCHED THEN
+		INSERT (typeid, typenamee, typenameVN)
+		VALUES (typeid, typenamee, typenameVN)
+	;
+
+	RAISERROR(N'SUCCESS', 0, 0) WITH NOWAIT;
+END TRY
+BEGIN CATCH
+	EXECUTE logger.handleThrow @Title, 0;
+	RAISERROR(N'FAILURE', 0, 0) WITH NOWAIT;
+END CATCH;
+GO

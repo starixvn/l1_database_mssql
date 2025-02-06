@@ -1,0 +1,4 @@
+USE SabaWH;
+GO
+CREATE ROLE app_exchange AUTHORIZATION dbo;
+GO

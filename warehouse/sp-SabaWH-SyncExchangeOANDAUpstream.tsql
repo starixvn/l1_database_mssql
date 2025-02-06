@@ -1,0 +1,37 @@
+USE	SabaWH;
+GO
+ALTER PROCEDURE sync.SyncExchangeOANDAUpstream
+	@Title	NVARCHAR(128)	= N'Sync Exchange'
+AS
+BEGIN TRY;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	DECLARE @exchangeOANDA t.ExchangeOANDA;
+
+	INSERT INTO @exchangeOANDA (ExchangeDate, ExchangeId, Code, USD, VND)
+	EXECUTE DB061.bodb02.sys.sp_executesql N'\
+SELECT	ExchangeDate, ExchangeId, Code, USD, VND
+FROM	dbo.ExchangeDailyOANDA AS e WITH (NOLOCK)
+WHERE	ExchangeDate = CAST(GETUTCDATE() AS DATE)';
+
+	MERGE INTO dbo.ExchangeDailyOANDA AS e
+	USING @exchangeOANDA AS src
+	ON	e.ExchangeDate = src.ExchangeDate
+	AND	e.ExchangeId = src.ExchangeId
+	WHEN MATCHED THEN UPDATE SET
+		Code = src.Code
+	,	USD = src.USD
+	,	VND = src.VND
+	WHEN NOT MATCHED THEN
+		INSERT (ExchangeDate, ExchangeId, Code, USD, VND)
+		VALUES (ExchangeDate, ExchangeId, Code, USD, VND)
+	;
+
+	RAISERROR(N'SUCCESS', 0, 0) WITH NOWAIT;
+END TRY
+BEGIN CATCH
+	EXECUTE logger.handleThrow @Title, 0;
+	RAISERROR(N'FAILURE', 0, 0) WITH NOWAIT;
+END CATCH;
+GO

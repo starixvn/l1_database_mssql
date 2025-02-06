@@ -1,0 +1,53 @@
+USE	NotificationDB;
+DECLARE	@Procedure	SYSNAME		= N'logger.sendError'
+	,	@Version	SYSNAME		= N'1.0.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+ALTER PROCEDURE	logger.sendError
+					@Title			NVARCHAR(128)			= NULL
+				,	@ErrorNumber	INT						= NULL
+				,	@ErrorSeverity	INT						= NULL
+				,	@ErrorState		INT						= NULL
+				,	@ErrorProcedure	NVARCHAR(256)			= NULL
+				,	@ErrorLine		INT						= NULL
+				,	@ErrorMessage	NVARCHAR(MAX)			= NULL
+				,	@Server			NVARCHAR(128)			= NULL
+				,	@Database		NVARCHAR(128)			= NULL
+				,	@isTest			BIT						= NULL
+AS
+BEGIN;
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+	SET NOCOUNT ON;
+
+	DECLARE	@Msg		NVARCHAR(MAX)
+		,	@NL			NVARCHAR(10)	= N'
+'
+		,	@To			NVARCHAR(128)	= IIF(@isTest = 0, N'Log', N'Billy')
+		;
+
+
+	SELECT	@Msg	= CONCAT_WS(@NL
+	,	CONCAT(N'*'
+		,	dbo.f_escMDv2(CONVERT(NVARCHAR(128), GETUTCDATE(), 127))
+		,	dbo.f_escMDv2(CONCAT(N'  [', ISNULL(@Title, N'SQL Server Error'), N']'))
+		,	N'*')
+	,	CONCAT(N'*'
+		,	dbo.f_escMDv2(CONCAT_WS(N'.', ISNULL(@Server, PUBLISHINGSERVERNAME()), ISNULL(@Database, DB_NAME())))
+		,	N'*')
+	,	N'```'
+	,	dbo.f_escMDv2(CONCAT(
+			N'Msg ', @ErrorNumber, N', '
+		,	N'Level ', @ErrorSeverity, N', '
+		,	N'State ', @ErrorState, N', '
+		,	ISNULL(N'Procedure ' + @ErrorProcedure + N'`, ', N'Adhoc script, ')
+		,	N'Line ', @ErrorLine, N''
+		))
+	,	dbo.f_escMDv2(CONCAT(N'', @ErrorMessage, N''))
+	,	N'```'
+	);
+
+	EXECUTE	dbo.sendNotification @To, @Msg;
+END;
+GO

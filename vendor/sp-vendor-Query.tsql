@@ -1,0 +1,121 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'vendor.Query'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT @Object		= N'vendor.QueryQuiet'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	vendor.Query
+	@Query		NVARCHAR(MAX)
+,	@L			TINYINT			= NULL
+,	@Vendor		TINYINT			= NULL
+,	@isArchive	TINYINT			= 0
+WITH ENCRYPTION
+AS
+BEGIN;
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	DECLARE	@Platform	NVARCHAR(128)	= NULL
+		,	@Label		NVARCHAR(20)	= N'MongoQuery'
+		,	@Msg		NVARCHAR(MAX)
+	;
+
+	/** Platform check */
+	SELECT TOP(1)
+		@Platform = host_platform
+	FROM sys.dm_os_host_info;
+
+	/** Forward execution to Windows SQL Server instance due to lack of support for external linked server on Linux SQL Server */
+	IF	@Platform = N'Linux'
+	BEGIN;
+		EXECUTE	logger.Info @label = @Platform, @subject = N'Forwading query to DBBRIDGE';
+		EXECUTE	DBBRIDGE.SabaDB.base.Query @Query, @L, @Vendor, @isArchive;
+		RETURN;
+	END;
+
+	/** Log error if platform is not Windows */
+	IF	ISNULL(@Platform, N'') <> N'Windows'
+	BEGIN;
+		EXECUTE	logger.Error @label = @Platform, @subject = N'Invalid platform info. Terminating...';
+		RETURN;
+	END;
+
+	/** Retry if error is non-critical */
+	DECLARE	@Retry	INT	= 3
+		;
+
+	Retry:
+	BEGIN TRY;
+	/** SG Active */
+	IF	( @L = 1 OR @Vendor = 42 ) AND @isArchive = 0
+	BEGIN;
+		EXECUTE	(@Query) AT L1BI;
+	END;
+
+	/** VG Active */
+	IF	( @L = 2 OR @Vendor = 66 ) AND @isArchive = 0
+	BEGIN;
+		EXECUTE	(@Query) AT L2BI;
+	END;
+
+	/** XD Active */
+	IF	( @L = 4 OR @Vendor = 86 ) AND @isArchive = 0
+	BEGIN;
+		EXECUTE	(@Query) AT L4BI;
+	END;
+	END TRY BEGIN CATCH;
+		/** If error is retryable, retry */
+		IF	@Retry > 0
+		AND ERROR_NUMBER() IN (7303)
+		BEGIN;
+			SELECT	@Retry 	= @Retry - 1
+				,	@Msg	= CONCAT(N'Encounter retryable error [', ERROR_NUMBER(), N'], retrying...')
+				;
+			EXECUTE	logger.Warning @label = @Label, @subject = @Msg;
+
+			IF	@@TRANCOUNT > 0 ROLLBACK;
+
+			EXECUTE	base.Wait @sec = 1;
+			GOTO Retry;
+		END;
+		ELSE THROW;
+	END CATCH;
+END;
+GO
+ALTER PROCEDURE	vendor.QueryQuiet
+	@Query		NVARCHAR(MAX)	= NULL
+,	@L			TINYINT			= NULL
+,	@Vendor		TINYINT			= NULL
+,	@isArchive	TINYINT			= 0
+WITH
+	ENCRYPTION
+AS
+BEGIN;
+	DECLARE	@Label		NVARCHAR(20)	= N'Query!'
+		,	@Msg		NVARCHAR(MAX)
+	;
+
+	BEGIN TRY;
+		EXECUTE	vendor.Query @Query, @L, @Vendor, @isArchive;
+	END TRY BEGIN CATCH;
+		/** Log error */
+		SELECT @Msg = CONCAT(N'Failed to execute query for @L = ', @L, N', @isArchive = ', @isArchive)
+			;
+		EXECUTE	logger.Error @label = @Label, @subject = @Msg;
+
+		IF	@@TRANCOUNT > 0 ROLLBACK;
+	END CATCH;
+END;
+GO

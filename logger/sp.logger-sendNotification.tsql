@@ -1,0 +1,54 @@
+USE	SabaDB;
+DECLARE	@Procedure	SYSNAME		= N'logger.sendNotification'
+	,	@Version	SYSNAME		= N'1.0.0'
+	;
+EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
+EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
+GO
+ALTER PROCEDURE	logger.sendNotification
+	@Message	NVARCHAR(MAX)	= NULL
+,	@isTest		BIT				= 1
+WITH ENCRYPTION
+AS
+BEGIN;
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	SELECT	@isTest = ISNULL(@isTest, 1);
+
+	DECLARE	@Telegram	NVARCHAR(128)	= IIF(@isTest = 0, N'SysHealth', N'Billy')
+		;
+
+	IF	@Message IS NOT NULL
+	BEGIN TRY;
+		EXECUTE	NOTI.NotificationDB.dbo.sendNotification
+			@To		= @Telegram
+		,	@Msg	= @Message
+		;
+		RAISERROR(N'\
+[INFO]  Message''s sent to [%s]', 0, 0, @Telegram) WITH NOWAIT;
+	END TRY BEGIN CATCH;
+		RAISERROR(N'\
+[ERR]   There is a problem at sending message, printing instead.', 0, 0) WITH NOWAIT;
+		GOTO stdout;
+	END CATCH;
+	ELSE
+	BEGIN;
+		RAISERROR(N'\
+[WARN]  NULL message will NOT be sent.', 0, 0) WITH NOWAIT;
+	END;
+
+	IF	@isTest = 1
+		GOTO stdout;
+
+	RETURN;
+
+	stdout:
+	RAISERROR(N'\
+[DEBUG] Send message to telegram
+------------------ [%s] ------------------
+%s
+------------------ [%s] ------------------', 0, 0, @Telegram, @Message, @Telegram) WITH NOWAIT;
+END;
+GO

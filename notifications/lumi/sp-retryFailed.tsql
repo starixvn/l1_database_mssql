@@ -1,0 +1,34 @@
+USE NotificationDB;
+GO
+ALTER PROCEDURE dbo.retryFailed
+	@NotiResults	dbo.NotiResults		READONLY
+AS
+/** Version: 2.0.0 */
+BEGIN;
+	SET NOCOUNT ON;
+
+	UPDATE	n WITH (ROWLOCK, UPDLOCK)
+	SET		n.SendStatus = 0
+		,	n.TryCount = n.TryCount + 1
+	FROM		dbo.TelegramNotifications AS n
+	INNER JOIN	@NotiResults AS r
+			ON	n.NotiId = r.NotiId
+	WHERE	n.SendStatus = 2;
+
+	UPDATE	n WITH (ROWLOCK, UPDLOCK)
+	SET		n.SendStatus = 255
+		,	n.TryCount = 255
+	FROM	dbo.TelegramNotifications AS n
+	WHERE	n.TryCount >= 5 AND TryCount <= 100;
+
+	UPDATE	n WITH (ROWLOCK, UPDLOCK)
+	SET		n.SendStatus = 127
+		,	n.TryCount = 127
+	FROM	dbo.TelegramNotifications AS n
+	WHERE	n.SendStatus NOT IN (1, 127, 255)
+		AND	n.NotiTime < DATEADD(DAY, -1, GETUTCDATE());
+END;
+GO
+GRANT EXECUTE ON dbo.retryFailed TO app_notifier;
+GO
+

@@ -1,0 +1,23 @@
+USE master;
+GO
+
+DECLARE	@LinkedServer	SYSNAME		= N'NOTI'
+	,	@Source			SYSNAME		= N'127.0.0.1'
+
+EXECUTE master.dbo.sp_addlinkedserver @server = @LinkedServer, @srvproduct = N'MSSQL', @provider = N'SQLNCLI', @datasrc = @Source;
+EXECUTE master.dbo.sp_addlinkedsrvlogin @rmtsrvname = @LinkedServer, @useself = N'False', @locallogin = NULL, @rmtuser = N'sender', @rmtpassword = 'Sender';
+
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'collation compatible', @optvalue = N'false';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'data access', @optvalue = N'true';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'dist', @optvalue = N'false';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'pub', @optvalue = N'false';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'rpc', @optvalue = N'true';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'rpc out', @optvalue = N'true';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'sub', @optvalue = N'false';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'connect timeout', @optvalue = N'0';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'collation name', @optvalue = NULL;
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'lazy schema validation', @optvalue = N'false';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'query timeout', @optvalue = N'0';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'use remote collation', @optvalue = N'true';
+EXECUTE master.dbo.sp_serveroption @server = @LinkedServer, @optname = N'remote proc transaction promotion', @optvalue = N'false';
+GO

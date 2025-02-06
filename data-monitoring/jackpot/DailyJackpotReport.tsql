@@ -1,0 +1,9 @@
+-- Report current running jackpots
+-- Jackpot split by prize pool
+
+-- Four Guardians game uses old jackpot, currency INH
+-- Other jackpot games use new jackpot, currency VND
+
+-- Report using grafana
+
+-- Alert to telegram when jackpot is pop

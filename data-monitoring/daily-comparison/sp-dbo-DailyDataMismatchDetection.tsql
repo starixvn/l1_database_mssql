@@ -1,0 +1,50 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'dbo.DailyDataMismatchDetection'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	dbo.DailyDataMismatchDetection
+	@Vendor		TINYINT
+,	@DataDate	DATE
+WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+
+	DECLARE	@Query		NVARCHAR(MAX)	= N''
+		,	@Param		NVARCHAR(MAX)	= N''
+		,	@FromTime	DATETIME		= DATEADD(MINUTE, -10, CAST(@DataDate AS DATETIME))
+		,	@ToTime		DATETIME		= DATEADD(MINUTE, 10, DATEADD(DAY, 1, CAST(@DataDate AS DATETIME)))
+		;
+
+	DECLARE	@VendorDaily	vendor.Tickets;
+	DECLARE	@OperatorDaily	operator.Tickets;
+
+	INSERT INTO @VendorDaily
+	EXECUTE vendor.GetTickets @Vendor, @FromTime, @ToTime;
+
+	INSERT INTO @OperatorDaily
+	EXECUTE	operator.GetTickets @Vendor, @FromTime, @ToTime;
+
+	SELECT	*
+	FROM			@VendorDaily AS v
+	FULL OUTER JOIN	@OperatorDaily AS o
+		ON	v.roundId = o.roundId
+		AND	v.gameTypeId = o.gameTypeId
+		AND	v.playerId = o.playerId
+	WHERE	CAST(v.roundTime AS DATE) = @DataDate
+		AND	(	v.turnOver <> o.turnOver
+			OR	v.winLost <> o.winLost
+			OR	o.recordCount > 1
+			)
+	ORDER BY v.transDate
+END;
+GO

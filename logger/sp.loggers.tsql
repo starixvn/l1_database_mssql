@@ -1,0 +1,115 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+SET NOCOUNT ON;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'1.0.0'
+	;
+
+SELECT 	@Object	= N'logger.Base';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT 	@Object	= N'logger.Verbose';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT 	@Object	= N'logger.Debug';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT 	@Object	= N'logger.Info';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT 	@Object	= N'logger.Warning';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT 	@Object	= N'logger.Error';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+
+SELECT 	@Object	= N'logger.Fatal';
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	logger.Base
+	@level		NCHAR(1)		= NULL
+,	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+BEGIN TRY;
+	DECLARE	@now		NCHAR(20)		= CONVERT(NVARCHAR(MAX), CONVERT(DATETIMEOFFSET(0), SYSDATETIMEOFFSET()), 127)
+		,	@tab		NCHAR(24)		= REPLICATE(NCHAR(32), 24)
+		,	@message	NVARCHAR(MAX)
+		;
+
+	IF	ERROR_NUMBER() IS NOT NULL
+	BEGIN;
+		SELECT	@message	= CONCAT_WS(NCHAR(32)
+			, CONCAT(N'[', ERROR_SEVERITY(), N']')
+			, CONCAT(N'ERR-', ERROR_NUMBER())
+			, CONCAT(N'[', ISNULL(ERROR_PROCEDURE(), N'Query'), N']^', ERROR_STATE())
+			, N'-'
+			, CONCAT(N':', ERROR_LINE(), N':')
+			, ERROR_MESSAGE()
+		);
+	END;
+
+	SELECT	@level		= ISNULL(@level, N'-')
+		,	@label		= ISNULL(@label, N' ')
+		,	@message	= REPLACE(CONCAT_WS(CONCAT(NCHAR(13), NCHAR(10)), ISNULL(@subject, N''), NULLIF(@message, N'')), NCHAR(10), CONCAT(NCHAR(10), @tab))
+		;
+	RAISERROR(N'\
+%s %s  [%s]  %s', 0, 0, @now, @level, @label, @message);
+END TRY BEGIN CATCH END CATCH;
+GO
+ALTER PROCEDURE	logger.Verbose
+	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+EXECUTE	logger.Base N'V', @label, @subject;
+GO
+ALTER PROCEDURE	logger.Debug
+	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+EXECUTE	logger.Base N'D', @label, @subject;
+GO
+ALTER PROCEDURE	logger.Info
+	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+EXECUTE	logger.Base N'I', @label, @subject;
+GO
+ALTER PROCEDURE	logger.Warning
+	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+EXECUTE	logger.Base N'W', @label, @subject;
+GO
+ALTER PROCEDURE	logger.Error
+	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+EXECUTE	logger.Base N'E', @label, @subject;
+GO
+ALTER PROCEDURE	logger.Fatal
+	@label		NVARCHAR(20)	= NULL
+,	@subject	NVARCHAR(MAX)	= NULL
+WITH ENCRYPTION
+AS
+EXECUTE	logger.Base N'F', @label, @subject;
+GO

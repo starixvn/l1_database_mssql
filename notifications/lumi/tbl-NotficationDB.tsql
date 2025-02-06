@@ -1,0 +1,67 @@
+USE NotificationDB;
+GO
+
+/** 1.0.0 */
+
+CREATE TABLE	dbo.TelegramTargets (
+	TargetId		INT				NOT NULL IDENTITY(1,1)
+,	ConversationId	VARCHAR(256)	NOT NULL
+,	CodeName		VARCHAR(64)		NOT NULL
+,	CONSTRAINT	PK_TelegramTargets PRIMARY KEY CLUSTERED (TargetId ASC) WITH (DATA_COMPRESSION = PAGE) ON DATA
+);
+
+CREATE UNIQUE NONCLUSTERED INDEX UIX_TelegramTargets_ConversationId ON dbo.TelegramTargets (
+	ConversationId ASC
+) WITH (DATA_COMPRESSION = PAGE) ON DATA;
+
+CREATE UNIQUE NONCLUSTERED INDEX UIX_TelegramTargets_CodeName ON dbo.TelegramTargets (
+	CodeName ASC
+) WITH (DATA_COMPRESSION = PAGE) ON DATA;
+
+CREATE TABLE	dbo.TelegramNotifications (
+	NotiId			INT				NOT NULL IDENTITY(1,1)
+,	NotiTime		DATETIME		NOT NULL
+		CONSTRAINT DF_NotiTime DEFAULT (GETUTCDATE())
+,	ConversationId	VARCHAR(256)	NOT NULL
+,	ContentType		VARCHAR(16)		NOT NULL
+		CONSTRAINT DF_ContentType DEFAULT ('Message')
+		CONSTRAINT CK_ContentType CHECK (ContentType IN ('Message', 'Photo', 'Grafana'))
+,	Content			NVARCHAR(4000)	NOT NULL
+,	SendStatus		TINYINT			NOT NULL
+		CONSTRAINT DF_SendStatus DEFAULT (0)
+,	TryCount		TINYINT			NOT NULL
+		CONSTRAINT DF_TryCount DEFAULT (0)
+,	PickupTime		DATETIME		NULL
+,	CONSTRAINT	PK_TelegramNotifications PRIMARY KEY NONCLUSTERED (NotiId ASC) WITH (DATA_COMPRESSION = PAGE) ON DATA
+);
+
+CREATE CLUSTERED INDEX CIX_TelegramNotifications_isSent ON dbo.TelegramNotifications (
+	SendStatus ASC, NotiTime ASC
+) WITH (DATA_COMPRESSION = PAGE) ON DATA;
+
+CREATE NONCLUSTERED INDEX IX_TelegramNotifications_TryCount ON dbo.TelegramNotifications (
+	TryCount ASC
+) WHERE TryCount >= 5 AND TryCount <= 100 WITH (DATA_COMPRESSION = PAGE) ON DATA;
+
+
+/** 1.1.0 */
+
+ALTER TABLE dbo.TelegramTargets
+ADD TopicId INT NOT NULL
+    CONSTRAINT DF_TelegramTargets_TopicId DEFAULT (0);
+
+ALTER TABLE dbo.TelegramNotifications 
+ADD TopicId INT NOT NULL
+    CONSTRAINT DF_TelegramNotifications_TopicId DEFAULT (0);
+
+DROP INDEX IF EXISTS UIX_TelegramTargets_ConversationId ON dbo.TelegramTargets;
+
+CREATE UNIQUE NONCLUSTERED INDEX UIX_TelegramTargets_ConversationId_TopicId ON dbo.TelegramTargets (
+	ConversationId ASC, TopicId ASC
+) WITH (DATA_COMPRESSION = PAGE) ON DATA;
+
+
+/** 2.0.0 */
+
+ALTER TABLE dbo.TelegramNotifications
+ADD MessageId INT NULL;
