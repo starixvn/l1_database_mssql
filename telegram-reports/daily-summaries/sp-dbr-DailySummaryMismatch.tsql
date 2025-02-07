@@ -1,0 +1,65 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+SELECT @Object		= N'dbr.DailySummaryMismatch'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	dbr.DailySummaryMismatch
+	@vendorId		TINYINT
+,	@reportDate		DATE
+,	@isTest			BIT		= 1
+-- WITH ENCRYPTION
+AS
+BEGIN;
+	DECLARE	@VendorDailySum		vendor.DailySummaries;
+	DECLARE	@OperatorDailySum	operator.DailySummaries;
+	DECLARE	@Mismatches			operator.DailySummaries;
+
+	INSERT INTO	@VendorDailySum
+	EXECUTE	vendor.GetDailySummaries @vendorId, @reportDate;
+
+	INSERT INTO @OperatorDailySum
+	EXECUTE	operator.GetDailySummaries @vendorId, @reportDate;
+
+	INSERT INTO	@Mismatches (siteId, reportDate, gameTypeId, gameName, currency, tickets, stake, payout)
+	SELECT	[operatorId]	= ISNULL(m.operatorId, v.operatorId)
+		,	[reportDate]	= ISNULL(o.reportDate, v.reportDate)
+		,	[gameTypeId]	= ISNULL(o.gameTypeId, v.gameTypeId)
+		,	[gameName]		= ISNULL(o.gameName, v.gameName)
+		,	[currency]		= ISNULL(o.currency, v.currency)
+		,	[tickets]		= diff.tickets
+		,	[stake]			= diff.stake
+		,	[payout]		= diff.payout
+	FROM			@OperatorDailySum AS o
+	OUTER APPLY		dbr.tf_OW_OperatorMapping(@vendorId, NULLIF(o.siteId, N'-')) AS m
+	FULL OUTER JOIN	@VendorDailySum AS v
+				ON	v.reportDate = o.reportDate
+				AND	m.operatorId = v.operatorId
+				AND	o.currency = v.currency
+				AND	o.gameTypeId = v.gameTypeId
+	CROSS APPLY	(VALUES	(
+		ISNULL(o.tickets, 0) - ISNULL(v.tickets, 0)
+	,	ISNULL(o.stake  , 0) - ISNULL(v.stake  , 0)
+	,	ISNULL(o.payout , 0) - ISNULL(v.payout , 0)
+	)) AS diff(tickets, stake, payout)
+	LEFT JOIN	dbr.tf_JackpotBettype() AS jp
+			ON	o.gameTypeId = jp.gameTypeId
+	WHERE	diff.tickets + diff.stake + diff.payout <> 0
+		AND	jp.gameTypeId IS NULL;
+
+	SELECT	*
+	FROM	@Mismatches;
+
+END;
+GO
+DECLARE	@reportDate	DATE = CAST(GETUTCDATE() AS DATE);
+
+EXECUTE	dbr.DailySummaryMismatch 42, @reportDate;
+EXECUTE	dbr.DailySummaryMismatch 66, @reportDate;
+EXECUTE	dbr.DailySummaryMismatch 86, @reportDate;

@@ -1,0 +1,82 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'operator.GetDailySummaries'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	operator.GetDailySummaries
+	@vendorId		TINYINT
+,	@reportDate		DATE
+-- WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+	SET XACT_ABORT ON;
+
+	DECLARE	@Query		NVARCHAR(MAX) = N''
+		,	@Param		NVARCHAR(MAX) = N''
+		;
+
+	SELECT	@Query += N'\
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET NOCOUNT ON;
+
+SELECT	[site]			= t.site
+	,	[reportDate]	= t.time
+	,	[gameTypeId]	= b.gameId
+	,	[gameName]		= ISNULL(g.typenamee, N''-'')
+	,	[currency]		= b.CurrencyName
+	,	[tickets]		= COUNT(1)
+	,	[stake]			= SUM(b.stake)
+	,	[payout]		= SUM(b.winlost)
+FROM		dbo.bettransRnG AS b WITH (NOLOCK)
+LEFT JOIN	dbo.bettype AS g WITH (NOLOCK)
+		ON	b.gameId = g.typeid
+LEFT JOIN	dbo.Dep_CustSuper AS s WITH (NOLOCK)
+		ON	b.srecommend = s.custid
+CROSS APPLY	(VALUES (
+	DATEADD(DAY, DATEDIFF(DAY, 0, b.Transdate3rd), 0)
+,	IIF(s.site = ''SEAL888'', s.site, IIF(s.site IS NULL, ''-'', ''''))
+)) AS t(time, site)
+WHERE	b.vendorID = @vendorId
+	AND	b.Transdate3rd >= @reportDate
+	AND	b.Transdate3rd < DATEADD(DAY, 1, @reportDate)
+	AND	b.statusID NOT IN (101, 102, 0) -- Reject, Void, running
+	AND	b.custid <> 0 -- Merged Tickets
+	AND	b.CurrencyName <> ''UUS''
+GROUP BY t.site, t.time, b.gameId, g.typenamee, b.CurrencyName
+OPTION (RECOMPILE);
+'
+		,	@Param = N'@vendorId SMALLINT, @reportDate DATETIME'
+		;
+
+	EXECUTE	DB061KBT.bodb02.sys.sp_executesql @Query, @Param, @vendorId, @reportDate;
+
+END;
+GO
+BEGIN TRY;
+	IF	TYPE_ID('operator.DailySummaries') IS NOT NULL
+		DROP TYPE operator.DailySummaries;
+
+	CREATE TYPE	operator.DailySummaries AS TABLE (
+		siteId			NVARCHAR(128)
+	,	reportDate		DATE
+	,	gameTypeId		INT
+	,	gameName		NVARCHAR(128)
+	,	currency		VARCHAR(16)
+	,	tickets			BIGINT
+	,	stake			DECIMAL(19,4)
+	,	payout			DECIMAL(19,4)
+	,	PRIMARY KEY NONCLUSTERED (siteId, reportDate, gameTypeId, currency)
+	) WITH (MEMORY_OPTIMIZED = ON);
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
+GO

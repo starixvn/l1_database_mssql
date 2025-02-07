@@ -1,0 +1,24 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'sg.DailySummaryReport'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	sg.DailySummaryReport
+	@ReportDate	DATE
+,	@isTest		BIT		= 1
+-- WITH ENCRYPTION
+AS
+BEGIN;
+	DECLARE	@vendorId TINYINT = 66
+	EXECUTE	dbr.DailySummaryMismatch @vendorId, @ReportDate, @isTest;
+END;
+GO
+EXECUTE	vg.DailySummaryReport '2025-02-07';

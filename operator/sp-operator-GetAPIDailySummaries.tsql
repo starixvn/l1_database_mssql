@@ -1,0 +1,60 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'vendor.GetDailySummaries'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	vendor.GetDailySummaries
+	@Vendor		TINYINT
+,	@ReportDate	DATE
+-- WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+
+	DECLARE	@Query	NVARCHAR(MAX)	= N''
+		,	@ToTime	DATE			= DATEADD(DAY, 1, @ReportDate)
+		;
+
+	SELECT	@Query = CONCAT(@Query, N'\
+SELECT	t.operatorId
+	,	t.time AS reportDate
+	,	t.gameId
+	,	g.gameTypeId
+	,	g.gameName
+	,	t.currency
+	,	t.tickets
+	,	t.stake
+	,	t.payout 
+	,	t.winloss
+	,	t.refund
+	,	t.usdStake
+	,	t.usdPayout 
+	,	t.usdWinloss
+	,	t.usdRefund
+FROM		summary.operator_daily_summaries AS t
+WHERE	t.time >= "', FORMAT(@ReportDate, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
+	AND	t.time < "', FORMAT(@ToTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
+	AND	t.currency <> "UUS"
+');
+
+	EXECUTE vendor.Query @Query = @Query, @Vendor = @Vendor;
+END;
+GO
+
+
+	-- 		siteId			NVARCHAR(128)
+	-- ,	reportDate		DATE
+	-- ,	gameTypeId		INT
+	-- ,	gameName		NVARCHAR(128)
+	-- ,	currency		VARCHAR(16)
+	-- ,	tickets			BIGINT
+	-- ,	stake			DECIMAL(19,4)
+	-- ,	payout			DECIMAL(19,4)
