@@ -7,18 +7,52 @@ DECLARE	@Object		SYSNAME
 	,	@Version	SYSNAME		= N'0.1.0'
 ;
 
-SELECT @Object		= N'sg.DailySummaryReport'
+SELECT @Object		= N'xd.DailySummaryReport'
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
 GO
-ALTER PROCEDURE	sg.DailySummaryReport
+ALTER PROCEDURE	xd.DailySummaryReport
 	@ReportDate	DATE
 ,	@isTest		BIT		= 1
 -- WITH ENCRYPTION
 AS
 BEGIN;
-	DECLARE	@vendorId TINYINT = 86
-	EXECUTE	dbr.DailySummaryMismatch @vendorId, @ReportDate, @isTest;
+	SET NOCOUNT ON;
+
+	DECLARE	@VendorId		TINYINT = 86
+		,	@Mismatch		TINYINT
+		,	@Message		NVARCHAR(MAX)	= N''
+		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
+		,	@Target		NVARCHAR(128)	= IIF(@isTest = 1, N'Billy', N'Daily')
+	;
+
+	EXECUTE	@Mismatch = dbr.DailySummaryMismatch @VendorId, @ReportDate, @isTest;
+
+	DECLARE	@VendorDailySum		vendor.DailySummaries;
+
+	INSERT INTO	@VendorDailySum
+	EXECUTE	vendor.GetDailySummaries @VendorId, @ReportDate;
+
+	SELECT	@Message = CONCAT(
+				@Message
+			,	dbo.f_escMDv2(CONCAT(N'[', IIF(@Mismatch > 0, N'MISMATCH', N'OK'), N']  [ SABA xD Summary ]'))
+			,	N'  `', dbo.f_escMDv2(FORMAT(@ReportDate, 'yyyy-MM-dd')), N'`'
+			,	@NL, @NL
+			,	STRING_AGG(o.str, @NL)
+			)
+	FROM	(
+		SELECT	[str] = CONCAT_WS(@NL
+				,	CONCAT(N'`', dbo.f_escMDv2(operatorId), N'`:')
+				,	CONCAT(N'    \- *BC*:   `', dbo.f_escMDv2(FORMAT(SUM(tickets), '#,##0')), N'`')
+				,	CONCAT(N'    \- *TO*:   `', dbo.f_escMDv2(FORMAT(SUM(usdStake), '#,##0.##')), N'`')
+				,	CONCAT(N'    \- *WL*:   `', dbo.f_escMDv2(FORMAT(SUM(usdWinloss), '#,##0.##')), N'`')
+				,	N'')
+		FROM	@VendorDailySum
+		GROUP BY operatorId
+	) AS o;
+
+	EXECUTE	NOTI.NotificationDB.dbo.SendNotification @Target, @Message;
 END;
 GO
-EXECUTE	xd.DailySummaryReport '2025-02-07';
+DECLARE	@reportDate	DATE = CAST(GETUTCDATE() AS DATE);
+EXECUTE	xd.DailySummaryReport @reportDate;

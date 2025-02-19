@@ -7,11 +7,11 @@ DECLARE	@Object		SYSNAME
 	,	@Version	SYSNAME		= N'0.1.0'
 ;
 
-SELECT @Object		= N'vendor.GetDailySummaries'
+SELECT @Object		= N'operator.GetAPIDailySummaries'
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
 EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
 GO
-ALTER PROCEDURE	vendor.GetDailySummaries
+ALTER PROCEDURE	operator.GetAPIDailySummaries
 	@Vendor		TINYINT
 ,	@ReportDate	DATE
 -- WITH ENCRYPTION
@@ -25,36 +25,39 @@ BEGIN;
 
 	SELECT	@Query = CONCAT(@Query, N'\
 SELECT	t.operatorId
-	,	t.time AS reportDate
-	,	t.gameId
-	,	g.gameTypeId
-	,	g.gameName
+	,	t.siteId
+	,	t.time AS "reportDate"
 	,	t.currency
 	,	t.tickets
 	,	t.stake
-	,	t.payout 
-	,	t.winloss
-	,	t.refund
-	,	t.usdStake
-	,	t.usdPayout 
-	,	t.usdWinloss
-	,	t.usdRefund
+	,	t.winloss AS "payout"
 FROM		summary.operator_daily_summaries AS t
 WHERE	t.time >= "', FORMAT(@ReportDate, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
 	AND	t.time < "', FORMAT(@ToTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
 	AND	t.currency <> "UUS"
+	AND	t.siteId NOT LIKE "41%"
+	AND	t.siteId NOT LIKE "42%"
+	AND	t.siteId NOT LIKE "43%"
 ');
 
 	EXECUTE vendor.Query @Query = @Query, @Vendor = @Vendor;
 END;
 GO
+BEGIN TRY;
+	IF	TYPE_ID('operator.APIDailySummaries') IS NOT NULL
+		DROP TYPE operator.APIDailySummaries;
 
-
-	-- 		siteId			NVARCHAR(128)
-	-- ,	reportDate		DATE
-	-- ,	gameTypeId		INT
-	-- ,	gameName		NVARCHAR(128)
-	-- ,	currency		VARCHAR(16)
-	-- ,	tickets			BIGINT
-	-- ,	stake			DECIMAL(19,4)
-	-- ,	payout			DECIMAL(19,4)
+	CREATE TYPE	operator.APIDailySummaries AS TABLE (
+		operatorId		NVARCHAR(128)
+	,	siteId			NVARCHAR(128)
+	,	reportDate		DATE
+	,	currency		VARCHAR(16)
+	,	tickets			BIGINT
+	,	stake			DECIMAL(19,4)
+	,	payout			DECIMAL(19,4)
+	,	PRIMARY KEY NONCLUSTERED (operatorId, siteId, reportDate, currency)
+	) WITH (MEMORY_OPTIMIZED = ON);
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
+GO

@@ -7,9 +7,10 @@ DECLARE	@TargetData AS TABLE (
 )
 INSERT INTO	@TargetData
 		(ConversationId, CodeName, TopicId)
-VALUES	('-1002336541068', 'Billy', 4)
+VALUES	('925798134', 'Billy', 0)
 	-- ,	('-1002160286588', 'Log', 0) -- LOCAL
 	,	('-1002175317224', 'Log', 0) -- PROD
+	,	('-1002336541068', 'Dev', 4) -- PROD
 	,	('-1002420392885', 'Test', 2) -- PROD
 	,	('-1002420392885', 'Daily', 7) -- PROD
 	;

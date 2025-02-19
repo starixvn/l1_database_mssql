@@ -1,0 +1,71 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+
+SELECT @Object		= N'vendor.GetAPIDailySummaries'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	vendor.GetAPIDailySummaries
+	@Vendor		TINYINT
+,	@ReportDate	DATE
+-- WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+
+	DECLARE	@Query	NVARCHAR(MAX)	= N''
+		,	@ToTime	DATE			= DATEADD(DAY, 1, @ReportDate)
+		;
+
+	SELECT	@Query = CONCAT(@Query, N'\
+SELECT	s.operatorId
+	,	s.siteId
+	,	s.time AS "reportDate"
+	,	c.code AS "currency"
+	,	SUM(s.tickets) AS "tickets"
+	,	SUM(s.stake * c.multiplier) AS "stake"
+	,	SUM(s.payout * c.multiplier) AS "payout"
+	,	SUM(s.usdStake) AS "usdStake"
+	,	SUM(s.usdPayout) AS "usdPayout"
+	,	SUM(s.usdWinloss) AS "usdWinloss"
+FROM		summary.daily_summaries AS s
+INNER JOIN	minigame.currencies AS c
+		ON	s.operatorId = c.operatorId
+		AND	s.currency = c.name
+WHERE	s.time >= "', FORMAT(@ReportDate, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
+	AND	s.time < "', FORMAT(@ToTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
+	AND	s.currency <> "UUS"
+	AND	s.operatorId IN ("SabaPlay")
+GROUP BY s.operatorId, s.siteId, s.time, c.code
+');
+
+	EXECUTE vendor.Query @Query = @Query, @Vendor = @Vendor;
+END;
+GO
+BEGIN TRY;
+	IF	TYPE_ID('vendor.APIDailySummaries') IS NOT NULL
+		DROP TYPE vendor.APIDailySummaries;
+
+	CREATE TYPE	vendor.APIDailySummaries AS TABLE (
+		operatorId		NVARCHAR(128)
+	,	siteId			NVARCHAR(128)
+	,	reportDate		DATE
+	,	currency		VARCHAR(16)
+	,	tickets			BIGINT
+	,	stake			DECIMAL(19,4)
+	,	payout			DECIMAL(19,4)
+	,	usdStake		DECIMAL(19,4)
+	,	usdPayout		DECIMAL(19,4)
+	,	usdWinloss		DECIMAL(19,4)
+	,	PRIMARY KEY NONCLUSTERED (operatorId, siteId, reportDate, currency)
+	) WITH (MEMORY_OPTIMIZED = ON);
+END TRY BEGIN CATCH;
+	EXECUTE	logger.Error N'Type'
+END CATCH;
+GO

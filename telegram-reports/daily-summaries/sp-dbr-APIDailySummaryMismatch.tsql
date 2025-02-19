@@ -1,0 +1,117 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+
+USE	SabaDB;
+GO
+DECLARE	@Object		SYSNAME
+	,	@Version	SYSNAME		= N'0.1.0'
+;
+SELECT @Object		= N'dbr.APIDailySummaryMismatch'
+EXECUTE	dbo.sp_MSR_InitProcedure @Object;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER PROCEDURE	dbr.APIDailySummaryMismatch
+	@vendorId		TINYINT
+,	@reportDate		DATE
+,	@isTest			BIT		= 1
+-- WITH ENCRYPTION
+AS
+BEGIN;
+	SET NOCOUNT ON;
+
+	DECLARE	@VendorDailySum		vendor.APIDailySummaries;
+	DECLARE	@OperatorDailySum	operator.APIDailySummaries;
+	DECLARE	@Mismatches			operator.APIDailySummaries;
+
+	INSERT INTO	@VendorDailySum
+	EXECUTE	vendor.GetAPIDailySummaries @vendorId, @reportDate;
+
+	INSERT INTO @OperatorDailySum
+	EXECUTE	operator.GetAPIDailySummaries @vendorId, @reportDate;
+
+	INSERT INTO	@Mismatches (operatorId, siteId, reportDate, currency, tickets, stake, payout)
+	SELECT	[operatorId]	= ISNULL(o.operatorId, v.operatorId)
+		,	[siteId]		= ISNULL(o.siteId, v.siteId)
+		,	[reportDate]	= ISNULL(o.reportDate, v.reportDate)
+		,	[currency]		= ISNULL(o.currency, v.currency)
+		,	[tickets]		= diff.tickets
+		,	[stake]			= diff.stake
+		,	[payout]		= diff.payout
+	FROM			@OperatorDailySum AS o
+	FULL OUTER JOIN	@VendorDailySum AS v
+				ON	o.reportDate = v.reportDate
+				AND	o.operatorId = v.operatorId
+				AND	o.siteId = v.siteId
+				AND	o.currency = v.currency
+	CROSS APPLY	(VALUES	(
+		ISNULL(o.tickets, 0) - ISNULL(v.tickets, 0)
+	,	ISNULL(o.stake  , 0) - ISNULL(v.stake  , 0)
+	,	ISNULL(o.payout , 0) - ISNULL(v.payout , 0)
+	)) AS diff(tickets, stake, payout)
+	WHERE	diff.tickets + diff.stake + diff.payout <> 0;
+
+	IF	EXISTS(SELECT 1 FROM @Mismatches)
+	BEGIN;
+		DECLARE	@NL			NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
+			,	@Message	NVARCHAR(MAX)
+			,	@Target		NVARCHAR(128)	= IIF(@isTest = 1, N'Billy', N'Daily')
+			;
+
+		SELECT	@Message = CONCAT(
+					N'\[ *MISMATCH* \]'
+				,	dbo.f_escMDv2(CONCAT(
+						N' ['
+					,	IIF(@vendorId = 42, N'SG', IIF(@vendorId = 66, N'VG', IIF(@vendorId = 86, N'XD', N'??')))
+					,	N'] @ ', FORMAT(@reportDate, 'yyyy-MM-dd'), @NL
+					))
+				,	STRING_AGG(od.str, @NL)
+				)
+		FROM	(
+			SELECT	DISTINCT operatorId, siteId
+			FROM	@Mismatches
+		) AS o
+		CROSS APPLY	(
+			SELECT	[str] = CONCAT(
+						N'**>`', dbo.f_escMDv2(CONCAT(o.operatorId, N'.', o.siteId)), N'`'
+					,	dbo.f_escMDv2(N' : ( BC | TO | PO )  ')
+					,	@NL
+					,	STRING_AGG(gd.str, @NL)
+					,	@NL, N'>||'
+					)
+			FROM	(
+				SELECT	DISTINCT currency
+				FROM	@Mismatches AS _m
+				WHERE	_m.operatorId = o.operatorId
+					AND	_m.siteId = o.siteId
+			) AS g
+			CROSS APPLY	(
+				SELECT	[str] = CONCAT(
+							N'>    '
+						,	dbo.f_escMDv2(CONCAT(
+								N'[', __m.currency, N']:  '
+							,	FORMAT(SUM(__m.tickets), '#,##0'), N' | '
+							,	FORMAT(SUM(__m.stake), '#,##0.##'), N' | '
+							,	FORMAT(SUM(__m.payout), '#,##0.##')
+							))
+						)
+				FROM	@Mismatches AS __m
+				WHERE	__m.operatorId = o.operatorId
+					AND	__m.siteId = o.siteId
+					AND	__m.currency = g.currency
+				GROUP BY __m.operatorId, __m.siteId, __m.currency
+			) AS gd
+		) AS od;
+
+		EXECUTE	NOTI.NotificationDB.dbo.SendNotification @Target, @Message;
+
+		RETURN 1;
+	END;
+
+	RETURN 0;
+END;
+GO
+DECLARE	@reportDate	DATE = CAST(GETUTCDATE() AS DATE);
+
+EXECUTE	dbr.APIDailySummaryMismatch 42, @reportDate;
+EXECUTE	dbr.APIDailySummaryMismatch 66, @reportDate;
+EXECUTE	dbr.APIDailySummaryMismatch 86, @reportDate;

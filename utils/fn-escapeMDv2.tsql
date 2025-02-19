@@ -1,0 +1,33 @@
+USE NotificationDB;
+DECLARE	@Object		SYSNAME		= N'dbo.f_escMDv2'
+	,	@Version	SYSNAME		= N'1.0.0'
+	;
+EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
+GO
+ALTER FUNCTION	dbo.f_escMDv2 (
+	@input	NVARCHAR(MAX)
+)
+RETURNS NVARCHAR(MAX)
+AS
+BEGIN;
+	RETURN	REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@input
+			, '_', '\_')
+			, '*', '\*')
+			, '[', '\[')
+			, ']', '\]')
+			, '(', '\(')
+			, ')', '\)')
+			, '~', '\~')
+			, '`', '\`')
+			, '>', '\>')
+			, '#', '\#')
+			, '+', '\+')
+			, '-', '\-')
+			, '=', '\=')
+			, '|', '\|')
+			, '{', '\{')
+			, '}', '\}')
+			, '.', '\.')
+			, '!', '\!')
+END;
+GO

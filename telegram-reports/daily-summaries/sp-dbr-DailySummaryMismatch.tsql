@@ -17,6 +17,8 @@ ALTER PROCEDURE	dbr.DailySummaryMismatch
 -- WITH ENCRYPTION
 AS
 BEGIN;
+	SET NOCOUNT ON;
+
 	DECLARE	@VendorDailySum		vendor.DailySummaries;
 	DECLARE	@OperatorDailySum	operator.DailySummaries;
 	DECLARE	@Mismatches			operator.DailySummaries;
@@ -53,9 +55,62 @@ BEGIN;
 	WHERE	diff.tickets + diff.stake + diff.payout <> 0
 		AND	jp.gameTypeId IS NULL;
 
-	SELECT	*
-	FROM	@Mismatches;
+	IF	EXISTS(SELECT 1 FROM @Mismatches)
+	BEGIN;
+		DECLARE	@NL			NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
+			,	@Message	NVARCHAR(MAX)
+			,	@Target		NVARCHAR(128)	= IIF(@isTest = 1, N'Billy', N'Daily')
+			;
 
+		SELECT	@Message = CONCAT(
+					N'\[ *MISMATCH* \]'
+				,	dbo.f_escMDv2(CONCAT(
+						N' ['
+					,	IIF(@vendorId = 42, N'SG', IIF(@vendorId = 66, N'VG', IIF(@vendorId = 86, N'XD', N'??')))
+					,	N'] @ ', FORMAT(@reportDate, 'yyyy-MM-dd'), @NL
+					))
+				,	STRING_AGG(od.str, @NL)
+				)
+		FROM	(
+			SELECT	DISTINCT siteId
+			FROM	@Mismatches
+		) AS o
+		CROSS APPLY	(
+			SELECT	[str] = CONCAT(
+						N'**>`', dbo.f_escMDv2(o.siteId), N'`'
+					,	dbo.f_escMDv2(N': ( BC | TO | PO )  ')
+					,	@NL
+					,	STRING_AGG(gd.str, @NL)
+					,	@NL, N'>||'
+					)
+			FROM	(
+				SELECT	DISTINCT gameTypeId
+				FROM	@Mismatches AS _m
+				WHERE	_m.siteId = o.siteId
+			) AS g
+			CROSS APPLY	(
+				SELECT	[str] = CONCAT(
+							N'>    '
+						,	dbo.f_escMDv2(CONCAT(
+								N'[', __m.gameTypeId, N'] ', MAX(__m.gameName), N':  '
+							,	FORMAT(SUM(__m.tickets), '#,##0'), N' | '
+							,	FORMAT(SUM(__m.stake), '#,##0.##'), N' | '
+							,	FORMAT(SUM(__m.payout), '#,##0.##')
+							))
+						)
+				FROM	@Mismatches AS __m
+				WHERE	__m.siteId = o.siteId
+					AND	__m.gameTypeId = g.gameTypeId
+				GROUP BY __m.siteId, __m.gameTypeId
+			) AS gd
+		) AS od;
+
+		EXECUTE	NOTI.NotificationDB.dbo.SendNotification @Target, @Message;
+
+		RETURN 1;
+	END;
+
+	RETURN 0;
 END;
 GO
 DECLARE	@reportDate	DATE = CAST(GETUTCDATE() AS DATE);

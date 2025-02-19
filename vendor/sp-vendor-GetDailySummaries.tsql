@@ -33,11 +33,11 @@ SELECT	t.operatorId
 	,	t.currency
 	,	t.tickets
 	,	t.stake
-	,	t.payout 
+	,	t.payout
 	,	t.winloss
 	,	t.refund
 	,	t.usdStake
-	,	t.usdPayout 
+	,	t.usdPayout
 	,	t.usdWinloss
 	,	t.usdRefund
 FROM		summary.daily_summaries AS t
