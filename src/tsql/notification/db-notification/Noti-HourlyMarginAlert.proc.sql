@@ -1,6 +1,6 @@
 USE	SabaDB;
 DECLARE	@Procedure	SYSNAME		= N'Noti.HourlyMarginAlert'
-	,	@Version	SYSNAME		= N'2.1.0'
+	,	@Version	SYSNAME		= N'2.1.1'
 	;
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
@@ -35,8 +35,9 @@ AS
 		@Var2:				[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	2.1.0
+	Version:	2.1.1
 	Revision:
+		- [2.1.1]	20250219@Billy		Send notification to new Telegram topic
 		- [2.1.0]	20240617@Billy		Add xD product
 		- [2.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [1.2.2]	20230413@Billy		Reformat due to Skynex changes
@@ -72,6 +73,7 @@ BEGIN;
 		,	@Hour			DATETIME
 		,	@Icon			NVARCHAR(10)
 		,	@Message		NVARCHAR(MAX)
+		,	@Target			NVARCHAR(128)
 		;
 
 	DECLARE	@Ls AS TABLE (
@@ -258,6 +260,9 @@ BEGIN;
 					)
 		) AS msg
 		EXECUTE	Noti.SendNotification @Message, @isTest;
+
+		SELECT	@Target = IIF(@isTest = 1, N'Billy', N'HourlyMargin');
+		EXECUTE	NOTI.NotificationDB.dbo.sendNotification @Target, @Message;
 	END;
 
 	Finish:

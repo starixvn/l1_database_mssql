@@ -28,8 +28,9 @@ AS
 		@isTest:			[optional]		- Is this testing execution?
 				<DEFAULT>	NULL			- Treat as if testing
 
-	Version:	2.0.1
+	Version:	2.0.2
 	Revision:
+		- [2.0.2]	20250204@Billy		Add AppType 6 mapping
 		- [2.0.1]	20230614@Billy		Add AppType 5 mapping
 		- [2.0.0]	20230515@Billy		Sum by operator & convert to base currency
 		- [1.2.2]	20230413@Billy		Reformat due to Skynex changes
@@ -118,11 +119,13 @@ BEGIN;
 		,	(1,  3, N'SI')
 		,	(1,  4, N'MK')
 		,	(1,  5, N'SA')
+		,	(1,  6, N'SL')
 		,	(2,  1, N'VG')
 		,	(2,  2, N'VGM')
 		,	(2,  3, N'VGI')
 		,	(2,  4, N'VMK')
 		,	(2,  5, N'VGA')
+		,	(2,  6, N'VGL')
 		;
 
 	UPDATE	s
