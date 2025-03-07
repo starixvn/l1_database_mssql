@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.0'
+	,	@Version	SYSNAME		= N'0.1.1'
 ;
 
 SELECT @Object		= N'vendor.GetDailySummaries'
@@ -34,11 +34,11 @@ SELECT	t.operatorId
 	,	t.tickets
 	,	t.stake
 	,	t.payout
-	,	t.winloss
+	,	- t.winloss AS winloss
 	,	t.refund
 	,	t.usdStake
 	,	t.usdPayout
-	,	t.usdWinloss
+	,	- t.usdWinloss AS usdWinloss
 	,	t.usdRefund
 FROM		summary.daily_summaries AS t
 INNER JOIN	summary.game_summary_config AS g

@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.0'
+	,	@Version	SYSNAME		= N'0.1.1'
 ;
 
 SELECT @Object		= N'vendor.GetAPIDailySummaries'
@@ -33,7 +33,7 @@ SELECT	s.operatorId
 	,	SUM(s.payout * c.multiplier) AS "payout"
 	,	SUM(s.usdStake) AS "usdStake"
 	,	SUM(s.usdPayout) AS "usdPayout"
-	,	SUM(s.usdWinloss) AS "usdWinloss"
+	,	SUM(- s.usdWinloss) AS "usdWinloss"
 FROM		summary.daily_summaries AS s
 INNER JOIN	minigame.currencies AS c
 		ON	s.operatorId = c.operatorId
