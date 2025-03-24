@@ -23,7 +23,7 @@ BEGIN;
 		,	@Mismatch		TINYINT
 		,	@Message		NVARCHAR(MAX)	= N''
 		,	@NL				NVARCHAR(10)	= NCHAR(13) + NCHAR(10)
-		,	@Target		NVARCHAR(128)	= IIF(@isTest = 1, N'Billy', N'Daily')
+		,	@Target			NVARCHAR(128)	= IIF(@isTest = 0, N'Daily', N'Billy')
 	;
 
 	EXECUTE	@Mismatch = dbr.APIDailySummaryMismatch @VendorId, @ReportDate, @isTest;
