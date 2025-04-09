@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.0'
+	,	@Version	SYSNAME		= N'0.1.1'
 ;
 SELECT @Object		= N'dbr.DailySummaryMismatch'
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
@@ -66,7 +66,13 @@ BEGIN;
 					N'\[ *MISMATCH* \]'
 				,	dbo.f_escMDv2(CONCAT(
 						N' ['
-					,	IIF(@vendorId = 42, N'SG', IIF(@vendorId = 66, N'VG', IIF(@vendorId = 86, N'XD', N'??')))
+					,	CASE @vendorId
+							WHEN 42 THEN N'SG'
+							WHEN 66 THEN N'VG'
+							WHEN 86 THEN N'XD'
+							WHEN 102 THEN N'SK'
+							ELSE N'??'
+						END
 					,	N'] @ ', FORMAT(@reportDate, 'yyyy-MM-dd'), @NL
 					))
 				,	STRING_AGG(od.str, @NL)
@@ -118,3 +124,4 @@ DECLARE	@reportDate	DATE = CAST(GETUTCDATE() AS DATE);
 EXECUTE	dbr.DailySummaryMismatch 42, @reportDate;
 EXECUTE	dbr.DailySummaryMismatch 66, @reportDate;
 EXECUTE	dbr.DailySummaryMismatch 86, @reportDate;
+EXECUTE	dbr.DailySummaryMismatch 102, @reportDate;

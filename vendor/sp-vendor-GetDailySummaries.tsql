@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.1'
+	,	@Version	SYSNAME		= N'0.1.2'
 ;
 
 SELECT @Object		= N'vendor.GetDailySummaries'
@@ -46,8 +46,12 @@ INNER JOIN	summary.game_summary_config AS g
 WHERE	t.time >= "', FORMAT(@ReportDate, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
 	AND	t.time < "', FORMAT(@ToTime, 'yyyy-MM-ddTHH:mm:ssZ'), N'"
 	AND	t.currency <> "UUS"
-	AND	t.operatorId <> "SabaPlay"
-');
+	AND	t.operatorId <> "SabaPlay"'
+, IIF(@Vendor = 86, N'
+	AND	t.operatorId <> "ONEworksCredit_SK"', N'')
+, IIF(@Vendor = 102, N'
+	AND	t.operatorId = "ONEworksCredit_SK"', N'')
+);
 
 	EXECUTE vendor.Query @Query = @Query, @Vendor = @Vendor;
 END;

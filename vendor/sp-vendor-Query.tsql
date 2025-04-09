@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.0'
+	,	@Version	SYSNAME		= N'0.1.1'
 ;
 
 SELECT @Object		= N'vendor.Query'
@@ -71,7 +71,7 @@ BEGIN;
 	END;
 
 	/** XD Active */
-	IF	( @L = 4 OR @Vendor = 86 ) AND @isArchive = 0
+	IF	( @L = 4 OR @Vendor = 86 OR @Vendor = 102 ) AND @isArchive = 0
 	BEGIN;
 		EXECUTE	(@Query) AT L4BI;
 	END;
