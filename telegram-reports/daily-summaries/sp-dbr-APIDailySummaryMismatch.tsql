@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.0'
+	,	@Version	SYSNAME		= N'0.1.1'
 ;
 SELECT @Object		= N'dbr.APIDailySummaryMismatch'
 EXECUTE	dbo.sp_MSR_InitProcedure @Object;
@@ -103,6 +103,59 @@ BEGIN;
 		) AS od;
 
 		EXECUTE	NOTI.NotificationDB.dbo.SendNotification @Target, @Message;
+
+		SELECT	@Message = CONCAT(
+					N'[ **MISMATCH** ]'
+				,	CONCAT(
+						N' ['
+					,	IIF(@vendorId = 42, N'SG', IIF(@vendorId = 66, N'VG', IIF(@vendorId = 86, N'XD', N'??')))
+					,	N'] @ ', FORMAT(@reportDate, 'yyyy-MM-dd'), @NL
+					)
+				,	STRING_AGG(od.str, @NL)
+				)
+		FROM	(
+			SELECT	DISTINCT operatorId, siteId
+			FROM	@Mismatches
+		) AS o
+		CROSS APPLY	(
+			SELECT	[str] = CONCAT(
+						N'**', o.operatorId, N'.', o.siteId, N'**'
+					,	N': ( BC | TO | PO )  '
+					,	@NL
+					,	STRING_AGG(gd.str, @NL)
+					)
+			FROM	(
+				SELECT	DISTINCT currency
+				FROM	@Mismatches AS _m
+				WHERE	_m.operatorId = o.operatorId
+					AND	_m.siteId = o.siteId
+			) AS g
+			CROSS APPLY	(
+				SELECT	[str] = CONCAT(
+							N'>'
+						,	CONCAT(
+								N'[', __m.currency, N']:  '
+							,	FORMAT(SUM(__m.tickets), '#,##0'), N' | '
+							,	FORMAT(SUM(__m.stake), '#,##0.##'), N' | '
+							,	FORMAT(SUM(__m.payout), '#,##0.##')
+							)
+						)
+				FROM	@Mismatches AS __m
+				WHERE	__m.operatorId = o.operatorId
+					AND	__m.siteId = o.siteId
+					AND	__m.currency = g.currency
+				GROUP BY __m.operatorId, __m.siteId, __m.currency
+			) AS gd
+		) AS od;
+
+		IF @isTest = 0
+		BEGIN;
+			EXECUTE	DBNOTI.NotificationDB.dbo.Skype_SendMessage 'S-LUMI-DAILY', @Message;
+		END;
+		ELSE
+		BEGIN;
+			EXECUTE	DBNOTI.NotificationDB.dbo.Skype_SendMessage 'TL-RISK', @Message;
+		END;
 
 		RETURN 1;
 	END;

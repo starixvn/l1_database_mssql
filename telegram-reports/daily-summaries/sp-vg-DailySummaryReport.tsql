@@ -4,7 +4,7 @@ SET QUOTED_IDENTIFIER ON;
 USE	SabaDB;
 GO
 DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'0.1.0'
+	,	@Version	SYSNAME		= N'0.1.1'
 ;
 
 SELECT @Object		= N'vg.DailySummaryReport'
@@ -52,6 +52,34 @@ BEGIN;
 	) AS o;
 
 	EXECUTE	NOTI.NotificationDB.dbo.SendNotification @Target, @Message;
+
+	SELECT	@Message = N''
+		,	@Message = CONCAT(
+				@Message
+			,	CONCAT(N'[', IIF(@Mismatch > 0, N'MISMATCH', N'OK'), N']  [ vGaming Summary ]')
+			,	N'  ', FORMAT(@ReportDate, 'yyyy-MM-dd')
+			,	@NL, @NL
+			,	STRING_AGG(o.str, @NL)
+			)
+	FROM	(
+		SELECT	[str] = CONCAT_WS(@NL
+				,	CONCAT(N'**', operatorId, N'**:')
+				,	CONCAT(N'> **BC**:   ', FORMAT(SUM(tickets), '#,##0'))
+				,	CONCAT(N'> **TO**:   ', FORMAT(SUM(usdStake), '#,##0.##'))
+				,	CONCAT(N'> **WL**:   ', FORMAT(SUM(usdWinloss), '#,##0.##'))
+				,	N'')
+		FROM	@VendorDailySum
+		GROUP BY operatorId
+	) AS o;
+
+	IF @isTest = 0
+	BEGIN;
+		EXECUTE	DBNOTI.NotificationDB.dbo.Skype_SendMessage 'S-LUMI-DAILY', @Message;
+	END;
+	ELSE
+	BEGIN;
+		EXECUTE	DBNOTI.NotificationDB.dbo.Skype_SendMessage 'TL-RISK', @Message;
+	END;
 END;
 GO
 DECLARE	@reportDate	DATE = CAST(GETUTCDATE() AS DATE);
