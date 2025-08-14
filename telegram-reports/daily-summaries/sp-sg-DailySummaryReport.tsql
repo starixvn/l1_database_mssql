@@ -26,7 +26,7 @@ BEGIN;
 		,	@Target			NVARCHAR(128)	= IIF(@isTest = 0, N'Daily', N'Billy')
 	;
 
-	EXECUTE	@Mismatch = dbr.DailySummaryMismatch @VendorId, @ReportDate, @isTest;
+	-- EXECUTE	@Mismatch = dbr.DailySummaryMismatch @VendorId, @ReportDate, @isTest;
 
 	DECLARE	@VendorDailySum		vendor.DailySummaries;
 	INSERT INTO	@VendorDailySum
@@ -56,7 +56,8 @@ BEGIN;
 	SELECT	@Message = N''
 		,	@Message = CONCAT(
 				@Message
-			,	CONCAT(N'[', IIF(@Mismatch > 0, N'MISMATCH', N'OK'), N']  [ SABA·games Summary ]')
+			-- ,	CONCAT(N'[', IIF(@Mismatch > 0, N'MISMATCH', N'OK'), N']  [ SABA·games Summary ]')
+			,	N'[ SABA·games Summary ]'
 			,	N'  ', FORMAT(@ReportDate, 'yyyy-MM-dd')
 			,	@NL, @NL
 			,	STRING_AGG(o.str, @NL)

@@ -5,7 +5,7 @@ DECLARE	@Procedure	SYSNAME		= N'logger.sendNotification'
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
 GO
-ALTER PROCEDURE	logger.sendNotification
+CREATE OR ALTER PROCEDURE	logger.sendNotification
 	@Message	NVARCHAR(MAX)	= NULL
 ,	@isTest		BIT				= 1
 WITH ENCRYPTION

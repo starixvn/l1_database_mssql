@@ -5,7 +5,7 @@ DECLARE	@Procedure	SYSNAME		= N'logger.handleThrow'
 EXECUTE	dbo.sp_MSR_InitProcedure @Procedure;
 EXECUTE	dbo.sp_MSR_SetVersion @Procedure, @Version;
 GO
-ALTER PROCEDURE logger.handleThrow
+CREATE OR ALTER PROCEDURE logger.handleThrow
 	@Title	SYSNAME
 ,	@isTest	BIT		= 1
 AS

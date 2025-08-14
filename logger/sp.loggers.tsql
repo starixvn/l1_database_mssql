@@ -4,42 +4,9 @@ SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
-
 USE	SabaDB;
 GO
-DECLARE	@Object		SYSNAME
-	,	@Version	SYSNAME		= N'1.0.0'
-	;
-
-SELECT 	@Object	= N'logger.Base';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-
-SELECT 	@Object	= N'logger.Verbose';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-
-SELECT 	@Object	= N'logger.Debug';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-
-SELECT 	@Object	= N'logger.Info';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-
-SELECT 	@Object	= N'logger.Warning';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-
-SELECT 	@Object	= N'logger.Error';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-
-SELECT 	@Object	= N'logger.Fatal';
-EXECUTE	dbo.sp_MSR_InitProcedure @Object;
-EXECUTE	dbo.sp_MSR_SetVersion @Object, @Version;
-GO
-ALTER PROCEDURE	logger.Base
+CREATE OR ALTER PROCEDURE	logger.Base
 	@level		NCHAR(1)		= NULL
 ,	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
@@ -71,42 +38,42 @@ BEGIN TRY;
 %s %s  [%s]  %s', 0, 0, @now, @level, @label, @message);
 END TRY BEGIN CATCH END CATCH;
 GO
-ALTER PROCEDURE	logger.Verbose
+CREATE OR ALTER PROCEDURE	logger.Verbose
 	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
 WITH ENCRYPTION
 AS
 EXECUTE	logger.Base N'V', @label, @subject;
 GO
-ALTER PROCEDURE	logger.Debug
+CREATE OR ALTER PROCEDURE	logger.Debug
 	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
 WITH ENCRYPTION
 AS
 EXECUTE	logger.Base N'D', @label, @subject;
 GO
-ALTER PROCEDURE	logger.Info
+CREATE OR ALTER PROCEDURE	logger.Info
 	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
 WITH ENCRYPTION
 AS
 EXECUTE	logger.Base N'I', @label, @subject;
 GO
-ALTER PROCEDURE	logger.Warning
+CREATE OR ALTER PROCEDURE	logger.Warning
 	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
 WITH ENCRYPTION
 AS
 EXECUTE	logger.Base N'W', @label, @subject;
 GO
-ALTER PROCEDURE	logger.Error
+CREATE OR ALTER PROCEDURE	logger.Error
 	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
 WITH ENCRYPTION
 AS
 EXECUTE	logger.Base N'E', @label, @subject;
 GO
-ALTER PROCEDURE	logger.Fatal
+CREATE OR ALTER PROCEDURE	logger.Fatal
 	@label		NVARCHAR(20)	= NULL
 ,	@subject	NVARCHAR(MAX)	= NULL
 WITH ENCRYPTION

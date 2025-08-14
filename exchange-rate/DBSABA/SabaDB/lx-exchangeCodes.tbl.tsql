@@ -1,0 +1,20 @@
+CREATE TABLE l1.ExchangeCodes (
+  code NVARCHAR(16)
+, base NVARCHAR(16)
+, CONSTRAINT PK_ExchangeCodes PRIMARY KEY CLUSTERED (code) ON DATA
+);
+CREATE TABLE l2.ExchangeCodes (
+  code NVARCHAR(16)
+, base NVARCHAR(16)
+, CONSTRAINT PK_ExchangeCodes PRIMARY KEY CLUSTERED (code) ON DATA
+);
+CREATE TABLE l4.ExchangeCodes (
+  code NVARCHAR(16)
+, base NVARCHAR(16)
+, CONSTRAINT PK_ExchangeCodes PRIMARY KEY CLUSTERED (code) ON DATA
+);
+CREATE TABLE l5.ExchangeCodes (
+  code NVARCHAR(16)
+, base NVARCHAR(16)
+, CONSTRAINT PK_ExchangeCodes PRIMARY KEY CLUSTERED (code) ON DATA
+);

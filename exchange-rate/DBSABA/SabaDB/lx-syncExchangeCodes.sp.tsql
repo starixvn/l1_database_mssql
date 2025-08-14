@@ -1,0 +1,20 @@
+CREATE OR ALTER PROCEDURE l1.syncExchangeCodes
+    @base NVARCHAR(16),
+    @code NVARCHAR(16)
+AS
+BEGIN TRY
+    SET NOCOUNT ON;
+    
+    MERGE INTO l1.ExchangeCodes AS target
+    USING (VALUES (@code, @base)) AS source(code, base)
+    ON (target.code = source.code)
+    WHEN MATCHED THEN
+        UPDATE SET target.base = source.base
+    WHEN NOT MATCHED THEN
+        INSERT (code, base)
+        VALUES (source.code, source.base);
+END TRY
+BEGIN CATCH
+-- TODO: Log the error
+END CATCH;
+GO
